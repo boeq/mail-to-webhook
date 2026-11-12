@@ -97,34 +97,38 @@
         margin-top: 12px;
       }
       .flow {
-        align-items: flex-start;
+        align-items: center;
         background: var(--tint);
         border-left: 1px solid var(--line);
         display: flex;
-        flex-direction: column;
-        font-size: 15px;
         gap: 0;
         justify-content: center;
         padding: 32px 48px;
         width: 400px;
       }
-      .flow__step {
-        align-items: baseline;
-        display: flex;
-        gap: 14px;
-        padding: 9px 0;
-        width: 100%;
-      }
-      .flow__step + .flow__step {
-        border-top: 1px solid var(--line);
-      }
-      .flow__key {
-        color: var(--quiet);
-        flex: none;
-        width: 78px;
-      }
-      .flow__value {
+      .flow__tile {
+        align-items: center;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 20px;
         color: var(--ink);
+        display: flex;
+        flex: none;
+        height: 112px;
+        justify-content: center;
+        width: 112px;
+      }
+      .flow__tile svg {
+        display: block;
+        height: 52px;
+        width: 52px;
+      }
+      .flow__arrow {
+        color: var(--quiet);
+        display: block;
+        flex: none;
+        height: 24px;
+        width: 72px;
       }
 
       /* footer: 1280 x 104 */
@@ -175,11 +179,26 @@
           <p class="header__line">Inbound email over SMTP, delivered to your webhook.</p>
         </div>
       </div>
-      <div class="flow mono">
-        <div class="flow__step"><span class="flow__key">receive</span><span class="flow__value">SMTP :25</span></div>
-        <div class="flow__step"><span class="flow__key">check</span><span class="flow__value">RCPT TO known?</span></div>
-        <div class="flow__step"><span class="flow__key">deliver</span><span class="flow__value">POST /your-webhook</span></div>
-        <div class="flow__step"><span class="flow__key">reply</span><span class="flow__value">2xx &rarr; 250 OK</span></div>
+      <div class="flow" aria-hidden="true">
+        <div class="flow__tile">
+          <!-- mail -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="20" height="16" x="2" y="4" rx="2.5" />
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+          </svg>
+        </div>
+        <svg class="flow__arrow" viewBox="0 0 72 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 12h46" />
+          <path d="m52 6 6 6-6 6" />
+        </svg>
+        <div class="flow__tile">
+          <!-- webhook -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2" />
+            <path d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06" />
+            <path d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8" />
+          </svg>
+        </div>
       </div>
     </div>
 

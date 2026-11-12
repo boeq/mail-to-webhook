@@ -13,4 +13,9 @@ Octicons (icon path data in internal/ui)
   MIT License
   https://github.com/primer/octicons
 
+Lucide icons (the mail and webhook icons in .github/assets/banner.html)
+  Copyright (c) Lucide Contributors
+  ISC License
+  https://github.com/lucide-icons/lucide
+
 Go module dependencies are listed in go.mod, each under its own license.
