@@ -6,44 +6,52 @@
 ghcr.io/boeq/mail-to-webhook:latest
 ```
 
-GitHub Actions builds it for `linux/amd64` and `linux/arm64` after the tests pass. `latest` follows `main`. Each build also has a tag with its short commit hash, and a release tagged `v1.2.3` is published as `1.2.3` and `1.2`. Pin one of those in production.
+GitHub Actions builds the image for `linux/amd64` and `linux/arm64` after the tests are successful.
 
-A server needs only `docker-compose.yml` and `.env`. To update:
+- The tag `latest` follows `main`.
+- Each build also has a tag with the short commit hash.
+- A release with the tag `v1.2.3` gets the image tags `1.2.3` and `1.2`.
+
+In production, use a version tag or a commit tag, not `latest`.
+
+A server uses only `docker-compose.yml` and `.env`. To update the service, use this command:
 
 ```bash
 docker compose pull && docker compose up -d
 ```
 
-## Before you point an MX record at it
+## Before you set the MX record
 
-1. Set `ALLOWED_DOMAINS`. With it empty, every recipient domain is accepted and posted to your endpoint.
-2. Set `SMTP_DOMAIN` to the hostname the MX record names, such as `mx.example.org`.
-3. Protect the UI. It shows mail. Docker Compose binds it to `127.0.0.1`. Reach it through a reverse proxy with authentication, or set `UI_AUTH_USER` and `UI_AUTH_PASS`.
-4. Match the size limits. Your endpoint and its proxy must accept a body of about 1.4 times `MAX_MESSAGE_BYTES`.
+1. Set `ALLOWED_DOMAINS`. If it is empty, the service accepts all recipient domains and posts the messages to your endpoint.
+2. Set `SMTP_DOMAIN` to the hostname in the MX record. Example: `mx.example.org`.
+3. Protect the UI, because it shows message content. Docker Compose binds the UI to `127.0.0.1`. Use a reverse proxy with authentication, or set `UI_AUTH_USER` and `UI_AUTH_PASS`.
+4. Make sure that the size limits agree. Your endpoint and its proxy must accept a body of approximately 1.4 times `MAX_MESSAGE_BYTES`.
 
 ## DNS
 
 | Record | Value |
 |---|---|
-| `MX` for the receiving domain | `10 mx.example.org.` |
-| `A` / `AAAA` for `mx.example.org` | The server's address |
+| `MX` for the domain that receives messages | `10 mx.example.org.` |
+| `A` / `AAAA` for `mx.example.org` | The IP address of the server |
 
 ## Port 25
 
-The container listens on 2525 as an unprivileged user. Publish it as 25:
+The container listens on port 2525 as a user without privileges. Publish this port as port 25:
 
 ```yaml
 ports:
   - "25:2525"
 ```
 
-Check that your hosting provider allows inbound connections on port 25, and open the port in the firewall.
+Make sure that your provider permits inbound connections on port 25. Open the port in the firewall.
 
 ## STARTTLS
 
-A sending server encrypts the connection when STARTTLS is offered. Without it, mail arrives in clear text. Senders that skip STARTTLS are still accepted either way.
+When the service offers STARTTLS, a sender encrypts the connection. Without STARTTLS, messages arrive as clear text.
 
-### Automatic, with Let's Encrypt
+The service always accepts a sender that does not use STARTTLS.
+
+### Automatic certificate from Let's Encrypt
 
 ```
 SMTP_DOMAIN=mx.example.org
@@ -57,22 +65,36 @@ ports:
   - "80:8089"
 ```
 
-The service orders a certificate for `SMTP_DOMAIN` and renews it when a third of its lifetime is left. Setting `ACME_ENABLED=true` accepts the [Let's Encrypt Subscriber Agreement](https://letsencrypt.org/repository/).
+The service orders a certificate for `SMTP_DOMAIN`. It renews the certificate when one third of the lifetime remains.
 
-Two things must be true before the CA will issue:
+If you set `ACME_ENABLED=true`, you accept the [Let's Encrypt Subscriber Agreement](https://letsencrypt.org/repository/).
 
-- `SMTP_DOMAIN` resolves to this server in public DNS.
-- Port 80 of that host reaches the service. The CA fetches a token from `http://<SMTP_DOMAIN>/.well-known/acme-challenge/...`. The listener on `ACME_HTTP_ADDR` answers that path and returns `404` for everything else.
+The CA gives a certificate only if these two conditions are true:
 
-STARTTLS is offered from the moment the certificate exists, usually within a minute of the first start, and no restart is needed. Until then mail is accepted without it. The certificate and the account key are kept in `DATA_DIR/acme`, so a restart does not order again.
+- `SMTP_DOMAIN` points to this server in public DNS.
+- Port 80 of that host connects to the service.
 
-If the order fails, the reason is in the log and the next attempt comes after 2 minutes, then 10, 30, 60 and 120. Let's Encrypt allows five failed validations per host and hour, and this stays below it. While you are setting things up, point `ACME_DIRECTORY_URL` at the staging directory, `https://acme-staging-v02.api.letsencrypt.org/directory`. Its certificates are not trusted, and its limits are far higher.
+The CA gets a token from `http://<SMTP_DOMAIN>/.well-known/acme-challenge/...`. The listener on `ACME_HTTP_ADDR` answers that path. It answers `404` for all other paths.
 
-`/healthz` reports the state under `starttls`, and the sidebar of the UI shows it.
+The service offers STARTTLS from the moment that the certificate exists. This is usually less than one minute after the first start. A restart is not necessary. Before that moment, the service accepts messages without STARTTLS.
 
-#### When a web server already holds port 80
+The service keeps the certificate and the account key in `DATA_DIR/acme`. As a result, it does not order a new certificate after a restart.
 
-Port 80 does not have to be free. It has to pass that one path on. Keep the listener on localhost:
+If the order fails:
+
+- The log gives the cause.
+- The service tries again after 2 minutes. The subsequent attempts come after 10, 30, 60 and 120 minutes.
+- Let's Encrypt permits five failed validations for each host in one hour. This schedule stays below that limit.
+
+For tests, set `ACME_DIRECTORY_URL` to the staging directory: `https://acme-staging-v02.api.letsencrypt.org/directory`. Clients do not trust the staging certificates. The staging limits are much higher.
+
+`/healthz` gives the status in `starttls`. The sidebar of the UI also shows the status.
+
+#### If a web server uses port 80
+
+Port 80 can be in use. The web server must only forward one path to the service.
+
+Keep the listener on localhost:
 
 ```yaml
 ports:
@@ -80,7 +102,9 @@ ports:
   - "127.0.0.1:8089:8089"
 ```
 
-and forward the path from the web server. Caddy:
+Forward the path from the web server.
+
+Caddy:
 
 ```
 http://mx.example.org {
@@ -100,20 +124,20 @@ server {
 }
 ```
 
-A Caddy that obtains certificates for its other sites keeps doing so: it answers its own challenges and forwards the ones it does not know. `make acme-e2e` tests this arrangement against a real Caddy.
+Caddy continues to get certificates for its other sites. It answers its own challenges and forwards the challenges that it does not know. `make acme-e2e` does a test of this configuration with a real Caddy.
 
-This needs the MX hostname to resolve to the machine the web server runs on. If nothing on port 80 of that address can reach the service, use a certificate of your own.
+For this configuration, the MX hostname must point to the machine of the web server. If no service on port 80 of that IP address can connect to the listener, use your own certificate.
 
-### With your own certificate
+### Your own certificate
 
-Mount a certificate for `SMTP_DOMAIN` and set:
+Mount a certificate for `SMTP_DOMAIN`. Then set these values:
 
 ```
 TLS_CERT=/certs/fullchain.pem
 TLS_KEY=/certs/privkey.pem
 ```
 
-The files are read at startup. Restart the container after renewing them.
+The service reads the files when it starts. After you renew the certificate, restart the container.
 
 ## The UI behind a proxy
 
@@ -128,33 +152,43 @@ mail-admin.example.org {
 }
 ```
 
-`/healthz` answers `200` while the service can read its history. Set `UI_ENABLED=false` to remove the UI. `/healthz` stays.
+`/healthz` answers `200` when the service can read its history.
+
+To remove the UI, set `UI_ENABLED=false`. `/healthz` stays available.
 
 ## Data
 
-Everything is under `DATA_DIR` (`/data`, a volume):
+All data is in `DATA_DIR` (`/data`, a volume):
 
-- `app.db`: messages, deliveries, the address list, refused attempts.
-- `spool/`: the raw messages, one `.eml` each.
-- `acme/`: the certificate, its private key and the CA account key, when `ACME_ENABLED` is set.
+- `app.db` contains the messages, the deliveries, the address list and the refused attempts.
+- `spool/` contains the raw messages. Each message is one `.eml` file.
+- `acme/` contains the certificate, its private key and the CA account key. It exists only with `ACME_ENABLED`.
 
-Both are pruned after `RETENTION_DAYS` (30). The directory holds mail content, so restrict who can read it. `STORE_RAW=false` keeps only metadata: nothing can then be viewed or sent again.
+The service removes messages and raw files after `RETENTION_DAYS` (30). The directory contains message content. Permit only the necessary persons to read it.
 
-The history is a record, not a queue. Mail is acknowledged only once your endpoint has accepted it, so losing the volume loses the record and no mail.
+With `STORE_RAW=false`, the service keeps only metadata. You then cannot see the content or send a message again.
+
+The history is a record. It is not a queue. The service confirms a message to the sender only after your endpoint accepts it. If you lose the volume, you lose the record. You do not lose messages.
 
 ## Memory
 
-A message is held in memory while it is processed, several times over: the source, the decoded attachments and the JSON. Allow about five times `MAX_MESSAGE_BYTES` for each message in flight. `MAX_CONNECTIONS` (50) is the upper bound on how many there can be at once.
+During the process, the service holds a message in memory more than one time: the source, the decoded attachments and the JSON.
 
-## Stopping and upgrading
+For each message in process, make approximately five times `MAX_MESSAGE_BYTES` available. `MAX_CONNECTIONS` (50) is the maximum number of messages in process at the same time.
 
-On `SIGTERM` the service stops accepting connections and lets the messages in flight finish. Give it `stop_grace_period: 90s`. A message cut off mid-delivery was never acknowledged, so its sender offers it again.
+## Stop and upgrade
 
-## Checking that it works
+On `SIGTERM`, the service does not accept new connections. It completes the messages that are in process. Set `stop_grace_period: 90s`.
+
+If a delivery stops before it is complete, the service did not confirm the message. The sender then sends the message again.
+
+## Make sure that it operates
 
 ```bash
 docker compose exec mail-to-webhook /usr/local/bin/mail-to-webhook healthcheck && echo ok
 docker compose logs -f mail-to-webhook
 ```
 
-Logs are JSON lines on stdout. Then use "Send a test mail" in the UI, or send one from outside and watch it appear under Messages.
+The log is JSON, one line for each event, on stdout.
+
+Then use "Send a test mail" in the UI. As an alternative, send a message from a different server and look for it on the Messages page.

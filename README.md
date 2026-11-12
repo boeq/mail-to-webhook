@@ -7,9 +7,11 @@
 
 # mail-to-webhook
 
-An SMTP server for inbound mail that posts each message to your HTTP endpoint as JSON.
+mail-to-webhook is an SMTP server for inbound messages. It posts each message to your HTTP endpoint as JSON.
 
-It is a self-hosted stand-in for Postmark's inbound webhook: the JSON has the same field names, so a handler written for Postmark keeps working. The sending server gets its `250 OK` only after your endpoint has answered `2xx`. If your endpoint is down, the sender keeps the mail and retries.
+You can use it as a self-hosted replacement for the inbound webhook of Postmark. The JSON has the same field names. As a result, a handler for Postmark continues to operate.
+
+The sender gets `250 OK` only after your endpoint answers `2xx`. If your endpoint does not answer, the sender keeps the message and tries again.
 
 ```
 sender ──SMTP :25──▶ mail-to-webhook ──HTTPS POST──▶ your endpoint
@@ -21,14 +23,18 @@ sender ──SMTP :25──▶ mail-to-webhook ──HTTPS POST──▶ your en
 
 ## Quick start
 
+1. Copy `.env.example` to `.env`.
+2. Set `WEBHOOK_URL` and `ALLOWED_DOMAINS` in `.env`.
+3. Start the service.
+
 ```bash
 cp .env.example .env            # set WEBHOOK_URL and ALLOWED_DOMAINS
 docker compose up -d
 ```
 
-This pulls `ghcr.io/boeq/mail-to-webhook`, which GitHub Actions builds from `main` for `linux/amd64` and `linux/arm64`.
+The command pulls the image `ghcr.io/boeq/mail-to-webhook`. GitHub Actions builds this image from `main` for `linux/amd64` and `linux/arm64`.
 
-Send it a message:
+Send a test message:
 
 ```bash
 python3 - <<'EOF'
@@ -43,17 +49,36 @@ smtplib.SMTP("127.0.0.1", 25).send_message(msg)
 EOF
 ```
 
-The operator UI is at <http://127.0.0.1:8080/ui/>. To try it before you have an endpoint, `make run` starts a local instance that posts to its own test receiver.
+Open the operator UI at <http://127.0.0.1:8080/ui/>.
+
+If you do not have an endpoint, use `make run`. This command starts a local instance that posts to its own test receiver.
 
 ## What it does
 
-- Reads any mail. Every charset, nested multiparts, inline images, RFC 2047 and RFC 2231 filenames, Outlook `winmail.dat`, mail forwarded as an attachment, signed mail, bounces. A message it cannot parse is still delivered, with the original attached as `message.eml`.
-- Maps the webhook answer to an SMTP reply. `2xx` accepts the mail. `400`, `406`, `410`, `413`, `415` and `422` refuse it, and the sender bounces it to its author. Every other answer, `401` and `500` included, defers it: the sender retries, and a deployment mistake delays mail instead of destroying it.
-- Checks recipients before accepting mail. It can ask your application whether an address exists and refuse the rest at `RCPT TO`, before any content is sent. Answers are kept in a local list. See [docs/recipient-check.md](docs/recipient-check.md).
-- Normalises what strict consumers reject. A blind-copied or forwarded message still names your address in `ToFull`. `Date` is always parseable. A message without a `Message-ID` gets a stable one. See [docs/payload.md](docs/payload.md).
-- Signs each request. `X-Mail-To-Webhook-Signature` is an HMAC-SHA256 over the timestamp and the raw body.
-- Offers STARTTLS. It can order its certificate from Let's Encrypt and renew it by itself. See [docs/deployment.md](docs/deployment.md#starttls).
-- Keeps a history. Every message, each delivery attempt and each refused recipient is stored for 30 days and shown in the UI, where a message can be sent again.
+- It reads all types of messages.
+  - It reads all character sets, nested multipart messages and inline images.
+  - It reads RFC 2047 and RFC 2231 file names and Outlook `winmail.dat` files.
+  - It reads forwarded messages, signed messages and bounce messages.
+  - If it cannot parse a message, it still delivers the message. It attaches the original as `message.eml`.
+- It changes the answer of your endpoint into an SMTP reply.
+  - `2xx` accepts the message.
+  - `400`, `406`, `410`, `413`, `415` and `422` refuse the message. The sender returns the message to the author.
+  - All other answers defer the message, and the sender tries again. This includes `401` and `500`.
+  - As a result, a configuration error causes a delay and not a loss.
+- It does a check of each recipient before it accepts a message. Refer to [docs/recipient-check.md](docs/recipient-check.md).
+  - It can ask your application if an address exists.
+  - It refuses unknown addresses at `RCPT TO`, before the sender transmits the content.
+  - It keeps the answers in a local list.
+- It corrects message data that strict consumers reject. Refer to [docs/payload.md](docs/payload.md).
+  - A forwarded message or a blind copy still has your address in `ToFull`.
+  - `Date` always has a format that a parser can read.
+  - A message without a `Message-ID` gets a stable ID.
+- It signs each request. `X-Mail-To-Webhook-Signature` is an HMAC-SHA256 of the timestamp and the raw body.
+- It offers STARTTLS. It can get a certificate from Let's Encrypt and renew the certificate automatically. Refer to [docs/deployment.md](docs/deployment.md#starttls).
+- It keeps a history for 30 days.
+  - The history contains each message, each delivery attempt and each refused recipient.
+  - The UI shows the history.
+  - You can send a message again from the UI.
 
 ## The payload
 
@@ -87,29 +112,34 @@ The operator UI is at <http://127.0.0.1:8080/ui/>. To try it before you have an 
 }
 ```
 
-`Envelope` is the one addition to Postmark's shape. It holds what the SMTP conversation said, which the headers of a message cannot be trusted for. The full field list is in [docs/payload.md](docs/payload.md).
+`Envelope` is the only addition to the Postmark format. It contains the data from the SMTP session. Do not trust the message headers for this data.
 
-## Settings you will need
+For the full field list, refer to [docs/payload.md](docs/payload.md).
+
+## Settings that you will use
 
 | Variable | Purpose |
 |---|---|
-| `WEBHOOK_URL` | Your endpoint. The only required setting. |
-| `WEBHOOK_AUTH_USER`, `WEBHOOK_AUTH_PASS` | HTTP basic auth for the endpoint. |
-| `WEBHOOK_SECRET` | Key for the signature header. |
-| `ALLOWED_DOMAINS` | The domains you receive mail for. Leaving it empty accepts mail for any domain. |
-| `RECIPIENT_CHECK_URL` | Endpoint that says which addresses exist. Empty turns the check off. |
-| `SMTP_DOMAIN` | The hostname your MX record points to. |
-| `ACME_ENABLED` | Get a STARTTLS certificate from Let's Encrypt and keep it renewed. |
-| `TLS_CERT`, `TLS_KEY` | Or a certificate of your own for STARTTLS. |
-| `UI_AUTH_USER`, `UI_AUTH_PASS` | Basic auth for the operator UI. |
+| `WEBHOOK_URL` | Your endpoint. This is the only mandatory setting. |
+| `WEBHOOK_AUTH_USER`, `WEBHOOK_AUTH_PASS` | HTTP basic authentication for the endpoint. |
+| `WEBHOOK_SECRET` | The key for the signature header. |
+| `ALLOWED_DOMAINS` | The domains for which you receive messages. If it is empty, the service accepts messages for all domains. |
+| `RECIPIENT_CHECK_URL` | The endpoint that tells which addresses exist. If it is empty, the check is off. |
+| `SMTP_DOMAIN` | The hostname in your MX record. |
+| `ACME_ENABLED` | The service gets a STARTTLS certificate from Let's Encrypt and renews it. |
+| `TLS_CERT`, `TLS_KEY` | Your own certificate for STARTTLS. |
+| `UI_AUTH_USER`, `UI_AUTH_PASS` | Basic authentication for the operator UI. |
 
-All settings are in [docs/configuration.md](docs/configuration.md). Running it as a real MX is in [docs/deployment.md](docs/deployment.md).
+For all settings, refer to [docs/configuration.md](docs/configuration.md). For operation as an MX server, refer to [docs/deployment.md](docs/deployment.md).
 
 ## What it does not do
 
-- It does not score spam. It does not check SPF, DKIM or DMARC, and it does not look at content. All headers reach your endpoint, so you can check them there. The recipient check stops mail to addresses that do not exist. It does not stop spam sent to one that does.
-- It has no queue of its own. Mail is never accepted and held. Reliability comes from the sending server's queue, which every mail server has.
-- It does not send mail.
+- It does not calculate a spam score.
+  - It does not examine SPF, DKIM, DMARC or the message content.
+  - Your endpoint receives all headers and can examine them.
+  - The recipient check stops messages to addresses that do not exist. It does not stop spam to an address that exists.
+- It has no queue. It does not accept a message and then hold it. The queue of the sender gives the reliability. Each mail server has a queue.
+- It does not send messages.
 
 ## Development
 
@@ -117,11 +147,11 @@ All settings are in [docs/configuration.md](docs/configuration.md). Running it a
 make check    # vet, unit tests, and an end-to-end run over real SMTP
 ```
 
-Go runs in a container when it is not installed, so Docker, Node and Python 3 are enough. See [CONTRIBUTING.md](CONTRIBUTING.md).
+If Go is not installed, Go runs in a container. As a result, Docker, Node and Python 3 are sufficient. Refer to [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+MIT. Refer to [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 <a href="https://boeq.ai">
   <picture>
