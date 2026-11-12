@@ -1,0 +1,36 @@
+/*
+ * mail-to-webhook UI styles.
+ *
+ * Tailwind is used as the engine, not as a utility-first authoring style: it
+ * supplies the token system (`@theme`), the breakpoint variants, Preflight and
+ * the build. The component vocabulary stays as ordinary BEM classes so the
+ * rules that are load-bearing can carry the comments that say why.
+ *
+ * The partials are copied unchanged, including rules for features this app
+ * does not have. Keep class names and tokens identical to the source so the
+ * two can be compared rule by rule; what this app adds goes in `local.css`.
+ *
+ * `source(none)` switches off automatic scanning from the working directory
+ * (the repo root holds docs, tests and Go whose prose would otherwise generate
+ * stray utilities); the `@source` lines name the only files that can use a
+ * class. The compiled output lives in `../static` too, so it is excluded
+ * explicitly or each build would scan the previous one.
+ *
+ * Build with `npm run css`; the output, `internal/ui/static/app.css`, is never
+ * committed.
+ */
+@import "tailwindcss" source(none);
+
+@source "../templates";
+@source "../static";
+@source not "../static/app.css";
+
+@import "./theme.css";
+@import "./base.css";
+
+@import "./shell.css";
+@import "./controls.css";
+@import "./surfaces.css";
+@import "./feedback.css";
+
+@import "./local.css";

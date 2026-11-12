@@ -1,0 +1,7 @@
+{{define "title"}}Message {{shortID .Doc.Message.ID}} · Mail to Webhook{{end}}
+{{define "content"}}
+  {{/* Outside the fragment, so the reload an action triggers keeps its answer; app.js
+       shows it once it has text. */}}
+  <div id="action-result" class="notice notice--info" role="status" hidden></div>
+  {{template "_message" .Doc}}
+{{end}}

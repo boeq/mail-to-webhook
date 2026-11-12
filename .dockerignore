@@ -1,0 +1,12 @@
+.git
+.github
+.env
+.data
+.local
+bin
+node_modules
+docs
+files.zip
+internal/ui/static/app.css
+docker-compose*.yml
+*.md

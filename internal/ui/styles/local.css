@@ -1,0 +1,13 @@
+/*
+ * The few rules this app adds to the ported partials. A rule belongs here only
+ * when the markup it styles has no counterpart in the source.
+ */
+@layer components {
+  /* A webhook host is longer than the values the status rows were drawn for. */
+  .status-row__value--clip {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

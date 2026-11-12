@@ -1,0 +1,12 @@
+{{define "title"}}Dashboard · Mail to Webhook{{end}}
+{{define "content"}}
+  <header class="page__header">
+    <div class="page__heading">
+      <h1 class="page__title">Dashboard</h1>
+    </div>
+    <div class="page__actions">
+      <a class="button button--primary" href="/ui/try">{{icon "play"}} Send a test mail</a>
+    </div>
+  </header>
+  {{template "_dashboard" .Doc}}
+{{end}}

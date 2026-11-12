@@ -1,0 +1,30 @@
+{{/* The sidebar's status rows. They re-fetch themselves every 30 s. */}}
+{{define "_shell_status"}}
+<div
+  class="sidebar__status"
+  id="shell-status"
+  hx-get="{{.StatusURL}}"
+  hx-swap="outerHTML"
+  hx-trigger="every 30s"
+>
+  <div class="status-row status-row--ok" title="The address the SMTP listener is bound to">
+    <span class="dot dot--done"></span>
+    <span class="status-row__label">SMTP</span>
+    <span class="status-row__value mono">{{dash .SMTP}}</span>
+  </div>
+  <div class="status-row" title="Each message is posted to {{dash .Webhook}}">
+    {{icon "link-external"}}
+    <span class="status-row__label">Webhook</span>
+    <span class="status-row__value status-row__value--clip">{{dash .Webhook}}</span>
+  </div>
+  <a
+    class="status-row status-row--link{{if eq .Check "ok"}} status-row--ok{{else if eq .Check "failing"}} status-row--danger{{end}}"
+    href="/ui/addresses"
+    title="Whether new recipient addresses can be checked with the consumer"
+  >
+    <span class="dot dot--{{tone "check" .Check}}"></span>
+    <span class="status-row__label">Address check</span>
+    <span class="status-row__value">{{.Check}}</span>
+  </a>
+</div>
+{{end}}

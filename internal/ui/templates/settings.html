@@ -1,0 +1,13 @@
+{{define "title"}}Settings · Mail to Webhook{{end}}
+{{define "content"}}
+  <header class="page__header">
+    <div class="page__heading">
+      <h1 class="page__title">Settings</h1>
+      <p class="page__subtitle">
+        The effective configuration, read-only. A key ending in _SECRET, _PASS, _TOKEN or
+        _KEY shows only whether it is set.
+      </p>
+    </div>
+  </header>
+  {{template "_settings" .Doc}}
+{{end}}

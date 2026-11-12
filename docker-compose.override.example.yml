@@ -1,0 +1,15 @@
+# Local development against an application on this machine, for example one
+# served at https://app.test with a locally trusted certificate.
+# Copy to docker-compose.override.yml, which git ignores.
+services:
+  mail-to-webhook:
+    ports: !override
+      - "127.0.0.1:2525:2525"
+      - "127.0.0.1:8080:8080"
+    extra_hosts:
+      - "app.test:host-gateway"
+    environment:
+      # A CA bundle that includes the local certificate authority.
+      SSL_CERT_FILE: /etc/ssl/local/ca-bundle.pem
+    volumes:
+      - ./.local/ca-bundle.pem:/etc/ssl/local/ca-bundle.pem:ro

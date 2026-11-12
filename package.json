@@ -1,0 +1,12 @@
+{
+  "name": "mail-to-webhook-ui",
+  "private": true,
+  "scripts": {
+    "css": "tailwindcss -i internal/ui/styles/index.css -o internal/ui/static/app.css --minify",
+    "css:watch": "tailwindcss -i internal/ui/styles/index.css -o internal/ui/static/app.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4",
+    "tailwindcss": "^4"
+  }
+}

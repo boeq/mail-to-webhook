@@ -1,0 +1,102 @@
+{{/* The dashboard fragment. It carries its own polling trigger and replaces itself:
+     every 2 s while a delivery is running, every 10 s otherwise, because mail arrives
+     on its own. */}}
+{{define "_dashboard"}}
+<div id="dashboard" class="stack" hx-get="{{.PanelURL}}" hx-swap="outerHTML" hx-trigger="{{.Trigger}}">
+  <div class="figures">
+    <div class="figure">
+      <span class="figure__value">{{.Stats.Received}}</span>
+      <span class="figure__label">received</span>
+      <span class="figure__hint"><span class="figure__note">last 24 h</span></span>
+    </div>
+    <div class="figure{{if .Stats.Delivered}} figure--done{{end}}">
+      <span class="figure__value">{{.Stats.Delivered}}</span>
+      <span class="figure__label">delivered</span>
+      <span class="figure__hint"><span class="figure__note">the webhook answered 2xx</span></span>
+    </div>
+    <div class="figure">
+      <span class="figure__value">{{.Stats.Deferred}}</span>
+      <span class="figure__label">deferred</span>
+      <span class="figure__hint"><span class="figure__note">the sender will retry</span></span>
+    </div>
+    <div class="figure{{if .Stats.Failed}} figure--danger{{end}}">
+      <span class="figure__value">{{.Stats.Failed}}</span>
+      <span class="figure__label">failed</span>
+      <span class="figure__hint"><span class="figure__note">refused by the webhook</span></span>
+    </div>
+    <div class="figure">
+      <span class="figure__value">{{.Stats.Refused}}</span>
+      <span class="figure__label">refused</span>
+      <span class="figure__hint"><span class="figure__note">turned away before any content</span></span>
+    </div>
+    <div class="figure">
+      <span class="figure__value">{{bytes .SpoolBytes}}</span>
+      <span class="figure__label">spool</span>
+      <span class="figure__hint"><span class="figure__note">raw messages kept</span></span>
+    </div>
+  </div>
+
+  <section id="attention" class="panel">
+    <header class="panel__header">
+      <h2 class="panel__title">{{icon "alert"}} Needs attention</h2>
+    </header>
+    <div class="panel__body">
+      {{if .Attention}}
+        {{template "_message_rows" .Attention}}
+      {{else}}
+        <div class="empty">
+          <span class="empty__icon">{{icon "check-circle" "icon--lg"}}</span>
+          <h3 class="empty__title">Nothing needs attention.</h3>
+          <div class="empty__body">A failed or deferred message shows here.</div>
+        </div>
+      {{end}}
+    </div>
+  </section>
+
+  <section id="recent" class="panel">
+    <header class="panel__header">
+      <h2 class="panel__title">
+        {{icon "list"}} Recent messages
+        <span class="panel__meta">last {{len .Recent}}</span>
+      </h2>
+    </header>
+    <div class="panel__body">
+      {{if .Recent}}
+        {{template "_message_rows" .Recent}}
+      {{else}}
+        <div class="empty">
+          <span class="empty__icon">{{icon "list" "icon--lg"}}</span>
+          <h3 class="empty__title">No messages yet.</h3>
+          <div class="empty__body">A message shows here as soon as a mail server delivers one.</div>
+        </div>
+      {{end}}
+    </div>
+  </section>
+</div>
+{{end}}
+
+{{/* The short message table of the dashboard's panels. */}}
+{{define "_message_rows"}}
+<div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr><th>Message</th><th>Received</th><th>From</th><th>Subject</th><th>Webhook</th></tr>
+    </thead>
+    <tbody>
+      {{range .}}
+        <tr>
+          <td><a class="link link--strong mono" href="{{.URL}}" title="{{.ID}}">{{shortID .ID}}</a></td>
+          <td class="table__time">{{ts .Received}}</td>
+          <td>{{dash .From}}</td>
+          <td>{{dash .Subject}}</td>
+          <td>
+            {{badge "webhook" .Status}}
+            {{if .Attempts}}<span class="muted">({{.Attempts}})</span>{{end}}
+            {{if .LastCode}}<span class="muted">· {{.LastCode}}</span>{{end}}
+          </td>
+        </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}

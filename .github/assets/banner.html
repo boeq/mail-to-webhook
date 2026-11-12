@@ -1,0 +1,204 @@
+<!doctype html>
+<!--
+  Source of the README's header and footer images. `make banners` renders it
+  four times: ?kind=header|footer and ?theme=light|dark.
+
+  The look is the boeq house style: paper, marine ink, hairlines, DM Sans and
+  DM Mono at weight 500 at most, and coral on the mark only.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>mail-to-webhook banner</title>
+    <link rel="preconnect" href="https://fonts.bunny.net" />
+    <link href="https://fonts.bunny.net/css?family=dm-sans:400,500|dm-mono:400,500" rel="stylesheet" />
+    <style>
+      :root {
+        --coral: #ff6b57;
+        --paper: #ffffff;
+        --ink: #142a4a;
+        --body: #56617c;
+        --quiet: #5e6a84;
+        --line: #dde1e9;
+        --tint: #f4f6f9;
+      }
+      :root[data-theme='dark'] {
+        --paper: #111e33;
+        --ink: #eaeef6;
+        --body: #b2bcd0;
+        --quiet: #8e9ab2;
+        --line: #27364f;
+        --tint: #18273f;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      html,
+      body {
+        background: transparent;
+        height: 100%;
+      }
+      body {
+        color: var(--ink);
+        font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .card {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        display: flex;
+        height: 100%;
+        overflow: hidden;
+      }
+      .lockup {
+        align-items: center;
+        display: inline-flex;
+        gap: 9px;
+      }
+      .lockup svg {
+        display: block;
+        height: 30px;
+        width: 30px;
+      }
+      .lockup span {
+        font-size: 25px;
+        font-weight: 500;
+        letter-spacing: -0.04em;
+        line-height: 1;
+      }
+      .mono {
+        font-family: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      /* header: 1280 x 320 */
+      .header {
+        align-items: stretch;
+      }
+      .header__text {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 40px 48px 44px;
+      }
+      .header__name {
+        font-size: 50px;
+        font-weight: 500;
+        letter-spacing: -0.045em;
+        line-height: 1.05;
+      }
+      .header__line {
+        color: var(--body);
+        font-size: 21px;
+        letter-spacing: -0.01em;
+        line-height: 1.4;
+        margin-top: 12px;
+      }
+      .flow {
+        align-items: flex-start;
+        background: var(--tint);
+        border-left: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        font-size: 15px;
+        gap: 0;
+        justify-content: center;
+        padding: 32px 48px;
+        width: 400px;
+      }
+      .flow__step {
+        align-items: baseline;
+        display: flex;
+        gap: 14px;
+        padding: 9px 0;
+        width: 100%;
+      }
+      .flow__step + .flow__step {
+        border-top: 1px solid var(--line);
+      }
+      .flow__key {
+        color: var(--quiet);
+        flex: none;
+        width: 78px;
+      }
+      .flow__value {
+        color: var(--ink);
+      }
+
+      /* footer: 1280 x 104 */
+      .footer {
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 40px;
+      }
+      .footer__left {
+        align-items: center;
+        display: flex;
+        gap: 18px;
+      }
+      .footer__note {
+        border-left: 1px solid var(--line);
+        color: var(--body);
+        font-size: 17px;
+        letter-spacing: -0.01em;
+        padding-left: 18px;
+      }
+      .footer__link {
+        color: var(--ink);
+        font-size: 17px;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <template id="lockup">
+      <span class="lockup">
+        <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <circle cx="21" cy="20" r="13" stroke="#FF6B57" stroke-width="6" />
+          <path d="M34 20v18" stroke="#FF6B57" stroke-width="6" stroke-linecap="round" />
+        </svg>
+        <span>boeq</span>
+      </span>
+    </template>
+
+    <div class="card header" data-kind="header" hidden>
+      <div class="header__text">
+        <div data-lockup></div>
+        <div>
+          <div class="header__name mono">mail-to-webhook</div>
+          <p class="header__line">Inbound email over SMTP, delivered to your webhook.</p>
+        </div>
+      </div>
+      <div class="flow mono">
+        <div class="flow__step"><span class="flow__key">receive</span><span class="flow__value">SMTP :25</span></div>
+        <div class="flow__step"><span class="flow__key">check</span><span class="flow__value">RCPT TO known?</span></div>
+        <div class="flow__step"><span class="flow__key">deliver</span><span class="flow__value">POST /your-webhook</span></div>
+        <div class="flow__step"><span class="flow__key">reply</span><span class="flow__value">2xx &rarr; 250 OK</span></div>
+      </div>
+    </div>
+
+    <div class="card footer" data-kind="footer" hidden>
+      <div class="footer__left">
+        <div data-lockup></div>
+        <span class="footer__note">Built and maintained by boeq</span>
+      </div>
+      <span class="footer__link">boeq.ai</span>
+    </div>
+
+    <script>
+      const params = new URLSearchParams(location.search);
+      document.documentElement.dataset.theme = params.get('theme') === 'dark' ? 'dark' : 'light';
+      const kind = params.get('kind') === 'footer' ? 'footer' : 'header';
+      document.querySelector(`[data-kind="${kind}"]`).hidden = false;
+      for (const slot of document.querySelectorAll('[data-lockup]')) {
+        slot.append(document.getElementById('lockup').content.cloneNode(true));
+      }
+    </script>
+  </body>
+</html>

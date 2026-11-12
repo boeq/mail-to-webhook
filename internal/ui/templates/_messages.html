@@ -1,0 +1,48 @@
+{{/* The message table fragment. It renders its own polling trigger, so a filtered page
+     of finished deliveries makes no requests at all. Without a trigger it carries no
+     hx-get either: htmx would otherwise re-fetch on a click. */}}
+{{define "_messages"}}
+<div
+  id="messages"
+  {{if .Trigger}}hx-get="{{.TableURL}}" hx-swap="outerHTML" hx-trigger="{{.Trigger}}"{{end}}
+>
+  {{if .Rows}}
+    <div class="table-wrap panel">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Id</th><th>Received</th><th>From</th><th>To</th><th>Subject</th>
+            <th>Attachments</th><th>Size</th><th>Webhook</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Rows}}
+            <tr>
+              <td><a class="link link--strong mono" href="{{.URL}}" title="{{.ID}}">{{shortID .ID}}</a></td>
+              <td class="table__time">{{ts .Received}}</td>
+              <td>{{dash .From}}</td>
+              <td>{{dash .To}}</td>
+              <td>{{dash .Subject}}</td>
+              <td class="num">{{.Attachments}}</td>
+              <td class="num">{{bytes .Size}}</td>
+              <td>
+                {{badge "webhook" .Status}}
+                {{if .Attempts}}<span class="muted">({{.Attempts}})</span>{{end}}
+                {{if .LastCode}}<span class="muted">· {{.LastCode}}</span>{{end}}
+              </td>
+            </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  {{else}}
+    <div class="empty">
+      <span class="empty__icon">{{icon "list" "icon--lg"}}</span>
+      <h3 class="empty__title">No messages match these filters.</h3>
+    </div>
+  {{end}}
+  {{if .OlderURL}}
+    <a class="button" href="{{.OlderURL}}">Older</a>
+  {{end}}
+</div>
+{{end}}

@@ -1,0 +1,31 @@
+{{define "title"}}Refused · Mail to Webhook{{end}}
+{{define "content"}}
+  {{with .Doc}}
+  <header class="page__header">
+    <div class="page__heading">
+      <h1 class="page__title">Refused</h1>
+      <p class="page__subtitle">
+        Mail that was turned away before its content was sent. The attempt is all there
+        is to keep; repeats within the same hour are counted on one row.
+      </p>
+    </div>
+  </header>
+  <form class="toolbar" method="get" action="/ui/refused">
+    <div class="field">
+      <label class="field__label" for="filter-reason">Reason</label>
+      <select class="field__input" id="filter-reason" name="reason">
+        <option value="">any</option>
+        {{range .Reasons}}
+          <option value="{{.}}" {{if eq $.Doc.Reason .}}selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label" for="filter-q">Search</label>
+      <input class="field__input" id="filter-q" type="text" name="q" value="{{.Query}}" placeholder="recipient, sender or address" />
+    </div>
+    <button class="button" type="submit">Filter</button>
+  </form>
+  {{end}}
+  {{template "_refused" .Doc}}
+{{end}}

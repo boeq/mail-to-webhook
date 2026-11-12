@@ -1,0 +1,51 @@
+{{/* The known-address list fragment. Nothing on it changes while you look, so it does
+     not poll; it reloads after one of its row actions answers. */}}
+{{define "_addresses"}}
+<div
+  id="addresses"
+  class="table-wrap panel"
+  hx-get="{{.TableURL}}"
+  hx-swap="outerHTML"
+  hx-trigger="address-changed from:body"
+>
+  {{if .Rows}}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Address</th><th>Status</th><th>Last checked</th><th>Last mail</th>
+          <th>Accepted</th><th>Refused</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Rows}}
+          <tr>
+            <td class="mono">{{.Address}}</td>
+            <td>{{badge "recipient" .Status}}</td>
+            <td class="table__time">{{ts .CheckedAt}}</td>
+            <td class="table__time">{{ts .LastMailAt}}</td>
+            <td class="num">{{.Accepted}}</td>
+            <td class="num">{{.Refused}}</td>
+            <td class="table__actions">
+              <div class="row__actions">
+                {{if $.Enabled}}
+                  <button class="button button--small" hx-swap="none" hx-post="{{$.CheckURL}}" hx-vals="{{.Vals}}">
+                    Check again
+                  </button>
+                {{end}}
+                <button class="button button--small button--danger" hx-swap="none" hx-post="{{$.ForgetURL}}"
+                  hx-vals="{{.Vals}}" hx-confirm="{{.Confirm}}">Forget</button>
+              </div>
+            </td>
+          </tr>
+        {{end}}
+      </tbody>
+    </table>
+  {{else}}
+    <div class="empty">
+      <span class="empty__icon">{{icon "repo" "icon--lg"}}</span>
+      <h3 class="empty__title">No addresses match.</h3>
+      <div class="empty__body">An address shows here once mail has arrived for it and the consumer was asked.</div>
+    </div>
+  {{end}}
+</div>
+{{end}}

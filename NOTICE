@@ -1,0 +1,16 @@
+mail-to-webhook
+Copyright (c) 2026 boeq
+
+This product includes the following third-party work in its source tree.
+
+htmx 2.0 (internal/ui/static/htmx.min.js)
+  Copyright (c) Big Sky Software
+  Zero-Clause BSD License
+  https://github.com/bigskysoftware/htmx
+
+Octicons (icon path data in internal/ui)
+  Copyright (c) GitHub, Inc.
+  MIT License
+  https://github.com/primer/octicons
+
+Go module dependencies are listed in go.mod, each under its own license.

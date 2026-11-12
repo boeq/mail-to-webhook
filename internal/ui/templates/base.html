@@ -1,0 +1,75 @@
+{{/* The shell every page extends: a sidebar
+     with the places the UI has, a topbar and drawer below `lg`, and the page in
+     `div.page`. htmx is vendored and app.css is built from ../styles; nothing on these
+     pages loads from a CDN, and there is no inline script. */}}
+{{define "base"}}<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>{{template "title" .}}</title>
+    <link rel="stylesheet" href="/ui/static/app.css" />
+    <script src="/ui/static/htmx.min.js" defer></script>
+    <script src="/ui/static/shell.js" defer></script>
+    <script src="/ui/static/app.js" defer></script>
+  </head>
+  <body>
+    <div class="shell">
+      <a class="skip-link" href="#main">Skip to content</a>
+
+      <header class="topbar">
+        {{/* shell.js flips aria-expanded and the label, and shows one of the two icons. */}}
+        <button
+          type="button"
+          class="button button--icon button--quiet"
+          aria-expanded="false"
+          aria-controls="sidebar"
+          aria-label="Open menu"
+          data-drawer-toggle
+        >
+          <span data-drawer-icon="menu">{{icon "menu"}}</span>
+          <span data-drawer-icon="x" hidden>{{icon "x"}}</span>
+        </button>
+        <a class="brand" href="/ui/">{{mark}}<span>Mail to Webhook</span></a>
+      </header>
+
+      <aside class="sidebar" id="sidebar">
+        <a class="brand sidebar__brand" href="/ui/">{{mark}}<span>Mail to Webhook</span></a>
+        <a class="button button--primary button--block" href="/ui/try">
+          {{icon "plus"}}
+          Send a test mail
+        </a>
+        <nav class="nav" aria-label="Main">
+          <ul class="nav__list">
+            {{range .Nav}}
+              <li>
+                <a
+                  class="nav__item{{if .Current}} nav__item--current{{end}}"
+                  href="{{.Href}}"
+                  {{if .Current}}aria-current="page"{{end}}
+                >
+                  {{icon .Icon}}
+                  <span class="nav__label">{{.Label}}</span>
+                </a>
+              </li>
+            {{end}}
+          </ul>
+        </nav>
+        <div class="sidebar__spacer"></div>
+        {{template "_shell_status" .Shell}}
+        <div class="sidebar__foot">
+          <p class="sidebar__hint">
+            Operator interface. Passwords, tokens and secrets are never shown here; a
+            setting that holds one only says whether it is set.
+          </p>
+        </div>
+      </aside>
+
+      <main class="content" id="main">
+        <div class="page">{{template "content" .}}</div>
+      </main>
+    </div>
+  </body>
+</html>
+{{end}}

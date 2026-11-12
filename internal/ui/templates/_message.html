@@ -1,0 +1,301 @@
+{{/* The message detail fragment. It polls while a delivery of this message is running
+     and re-fetches when an action on the page says the message changed. Everything a
+     mail supplied is text here: the HTML body is shown as source and never rendered. */}}
+{{define "_message"}}
+<div
+  id="message"
+  class="stack"
+  hx-get="{{.PanelURL}}"
+  hx-swap="outerHTML"
+  hx-trigger="{{.Trigger}}"
+  data-message-id="{{.Message.ID}}"
+>
+  <header class="page__header">
+    <div class="page__heading">
+      <a class="page__back" href="/ui/messages">{{icon "arrow-left"}} Messages</a>
+      <p class="page__eyebrow">{{dash .From}} → {{dash .Recipient}}</p>
+      <h1 class="page__title">
+        Message <span class="mono" title="{{.Message.ID}}">{{shortID .Message.ID}}</span>
+        {{badge "message" .Message.Status}}
+      </h1>
+      <p class="page__subtitle">
+        received {{ts .Message.ReceivedAt}} · {{bytes .Message.Size}}
+        {{if gt .Message.SeenCount 1}}· seen {{.Message.SeenCount}}×{{end}}
+      </p>
+    </div>
+    {{if or .CanResend .Message.HasRaw}}
+      <div class="page__actions">
+        {{if .CanResend}}
+          <button class="button" hx-post="{{.ResendURL}}" hx-swap="none">Resend webhook</button>
+        {{end}}
+        {{if .Message.HasRaw}}
+          <a class="button button--primary" id="download-eml" href="{{.RawURL}}" download>Download .eml</a>
+        {{end}}
+      </div>
+    {{end}}
+  </header>
+
+  <div id="summary" class="grid grid--halves">
+    <section class="panel">
+      <header class="panel__header">
+        <h2 class="panel__title">{{icon "info"}} Message</h2>
+      </header>
+      <div class="panel__body">
+        <dl class="facts">
+          <div class="facts__row">
+            <dt>From</dt>
+            <dd>{{if .Message.FromName}}{{.Message.FromName}} · {{end}}{{dash .Message.FromEmail}}</dd>
+          </div>
+          <div class="facts__row"><dt>To</dt><dd>{{dash .Message.ToHeader}}</dd></div>
+          <div class="facts__row"><dt>Subject</dt><dd>{{dash .Message.Subject}}</dd></div>
+          <div class="facts__row"><dt>Message-ID</dt><dd class="mono">{{dash .Message.MessageID}}</dd></div>
+          <div class="facts__row"><dt>Received</dt><dd>{{ts .Message.ReceivedAt}}</dd></div>
+          <div class="facts__row"><dt>Size</dt><dd>{{bytes .Message.Size}}</dd></div>
+        </dl>
+      </div>
+    </section>
+    <section id="envelope" class="panel">
+      <header class="panel__header">
+        <h2 class="panel__title">{{icon "link-external"}} Envelope</h2>
+      </header>
+      <div class="panel__body">
+        <dl class="facts">
+          <div class="facts__row"><dt>MAIL FROM</dt><dd class="mono">{{dash .Message.MailFrom}}</dd></div>
+          <div class="facts__row">
+            <dt>RCPT TO</dt>
+            <dd class="mono">{{range $i, $rcpt := .Message.RcptTo}}{{if $i}}<br />{{end}}{{$rcpt}}{{else}}—{{end}}</dd>
+          </div>
+          <div class="facts__row"><dt>Remote address</dt><dd class="mono">{{dash .Message.RemoteAddr}}</dd></div>
+          <div class="facts__row"><dt>HELO</dt><dd class="mono">{{dash .Message.Helo}}</dd></div>
+          <div class="facts__row"><dt>TLS</dt><dd>{{if .Message.TLS}}yes{{else}}no{{end}}</dd></div>
+        </dl>
+      </div>
+    </section>
+  </div>
+
+  {{if or .Message.Notes .Message.ParseError}}
+    <section id="notes" class="panel panel--warn">
+      <header class="panel__header">
+        <h2 class="panel__title">{{icon "info"}} Normalised</h2>
+      </header>
+      <div class="panel__body">
+        <ul class="rows rows--divided">
+          {{if .Message.ParseError}}
+            <li class="row"><span>the message could only partly be read: {{.Message.ParseError}}</span></li>
+          {{end}}
+          {{range .Message.Notes}}
+            <li class="row"><span>{{.}}</span></li>
+          {{end}}
+        </ul>
+      </div>
+    </section>
+  {{end}}
+
+  {{with .Error}}
+    <section id="error" class="panel panel--danger">
+      <header class="panel__header">
+        <h2 class="panel__title">
+          {{icon "alert"}} Error · <code>{{.Status}}</code>{{if .Code}} · <code>{{.Code}}</code>{{end}}
+        </h2>
+      </header>
+      <div class="panel__body">
+        <p>{{dash .Message}}</p>
+        {{if .Excerpt}}<pre class="output output--wrap">{{.Excerpt}}</pre>{{end}}
+      </div>
+    </section>
+  {{end}}
+
+  {{if not .Message.HasRaw}}
+    <div id="no-raw" class="notice notice--info">
+      {{icon "info"}}
+      <div class="notice__body">The raw message is not stored, so its content cannot be shown.</div>
+    </div>
+    {{if .Message.Attachments}}
+      <section id="attachments" class="panel">
+        <header class="panel__header">
+          <h2 class="panel__title">Attachments</h2>
+        </header>
+        <div class="panel__body">
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>Name</th><th>Type</th><th>Size</th></tr></thead>
+              <tbody>
+                {{range .Message.Attachments}}
+                  <tr>
+                    <td>{{dash .Name}}</td>
+                    <td class="mono">{{.ContentType}}</td>
+                    <td class="num">{{bytes .Size}}</td>
+                  </tr>
+                {{end}}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    {{end}}
+  {{else}}
+    <section id="attachments" class="panel">
+      <header class="panel__header">
+        <h2 class="panel__title">Attachments</h2>
+      </header>
+      <div class="panel__body">
+        {{if .Attachments}}
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>Name</th><th>Type</th><th>Size</th><th></th></tr></thead>
+              <tbody>
+                {{range .Attachments}}
+                  <tr>
+                    <td>{{dash .Name}}</td>
+                    <td class="mono">{{.Type}}</td>
+                    <td class="num">{{bytes .Size}}</td>
+                    <td class="table__actions"><a class="button button--small" href="{{.URL}}" download>Download</a></td>
+                  </tr>
+                {{end}}
+              </tbody>
+            </table>
+          </div>
+        {{else}}
+          <p class="muted">No attachments.</p>
+        {{end}}
+      </div>
+    </section>
+
+    <section id="text-body" class="panel">
+      <header class="panel__header">
+        <h2 class="panel__title">Text body</h2>
+      </header>
+      <div class="panel__body">
+        {{if .Text}}
+          <pre class="output output--wrap">{{.Text}}</pre>
+        {{else}}
+          <p class="muted">No text body.</p>
+        {{end}}
+        {{if .HTML}}
+          <details id="html-source" class="disclosure">
+            <summary class="disclosure__summary">{{icon "chevron-right"}} HTML source</summary>
+            <div class="disclosure__body">
+              <pre class="output output--wrap">{{.HTML}}</pre>
+            </div>
+          </details>
+        {{end}}
+        <details id="headers" class="disclosure">
+          <summary class="disclosure__summary">{{icon "chevron-right"}} Headers</summary>
+          <div class="disclosure__body">
+            <div class="table-wrap">
+              <table class="table">
+                <thead><tr><th>Name</th><th>Value</th></tr></thead>
+                <tbody>
+                  {{range .Headers}}
+                    <tr><td class="mono">{{.Name}}</td><td class="mono">{{.Value}}</td></tr>
+                  {{end}}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </details>
+      </div>
+    </section>
+  {{end}}
+
+  <section id="webhooks" class="panel">
+    <header class="panel__header">
+      <h2 class="panel__title">Webhook deliveries</h2>
+    </header>
+    <div class="panel__body">
+      {{if .Deliveries}}
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Delivery</th><th>Trigger</th><th>Status</th><th>Attempts</th><th>Last code</th>
+                <th>Response</th><th>Next attempt</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{range .Deliveries}}
+                <tr>
+                  <td><span class="mono" title="{{.ID}}">{{shortID .ID}}</span></td>
+                  <td><code>{{.Trigger}}</code></td>
+                  <td>{{badge "webhook" .Status}}</td>
+                  <td class="num">{{.Attempt}}</td>
+                  <td class="mono">{{if .LastStatusCode}}{{.LastStatusCode}}{{else}}—{{end}}</td>
+                  <td>
+                    <span class="muted">{{dash .Response}}</span>
+                    {{if .Attempts}}
+                      <details>
+                        <summary>attempts</summary>
+                        <table class="table">
+                          <thead><tr><th>#</th><th>Time</th><th>Code</th><th>Error</th><th>Duration</th></tr></thead>
+                          <tbody>
+                            {{range .Attempts}}
+                              <tr>
+                                <td class="mono">{{.Attempt}}</td>
+                                <td class="table__time">{{ts .At}}</td>
+                                <td class="mono">{{if .StatusCode}}{{.StatusCode}}{{else}}—{{end}}</td>
+                                <td>{{dash .Error}}</td>
+                                <td class="table__time">{{.DurationMS}} ms</td>
+                              </tr>
+                            {{end}}
+                          </tbody>
+                        </table>
+                      </details>
+                    {{end}}
+                  </td>
+                  <td class="table__time">{{ts .NextAttemptAt}}</td>
+                </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+      {{else}}
+        <p class="muted">No delivery yet.</p>
+      {{end}}
+    </div>
+  </section>
+
+  {{if .Receipts}}
+    <section id="sink-receipts" class="panel">
+      <header class="panel__header">
+        <h2 class="panel__title">Webhook received</h2>
+      </header>
+      <div class="panel__body">
+        {{range .Receipts}}
+          {{/* The body goes through the template's escaping; it came from whoever posted to the sink. */}}
+          <details class="sink-receipt">
+            <summary>
+              {{dash .Event}} · {{ts .ReceivedAt}}
+              {{badge "signature" .SignatureStatus}}
+            </summary>
+            <pre class="output output--wrap">{{.Body}}</pre>
+          </details>
+        {{end}}
+      </div>
+    </section>
+  {{end}}
+
+  {{if .Message.HasRaw}}
+    <section id="payload" class="panel">
+      <header class="panel__header">
+        <h2 class="panel__title">Payload</h2>
+      </header>
+      <div class="panel__body">
+        {{if .PayloadNote}}
+          <div class="notice notice--warn">
+            {{icon "alert"}}
+            <div class="notice__body">{{.PayloadNote}}</div>
+          </div>
+        {{end}}
+        {{if .Payload}}
+          <details class="disclosure">
+            <summary class="disclosure__summary">{{icon "chevron-right"}} The JSON a delivery posts</summary>
+            <div class="disclosure__body">
+              <pre class="output output--wrap">{{.Payload}}</pre>
+            </div>
+          </details>
+        {{end}}
+      </div>
+    </section>
+  {{end}}
+</div>
+{{end}}

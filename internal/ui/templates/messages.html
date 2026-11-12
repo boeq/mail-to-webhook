@@ -1,0 +1,45 @@
+{{define "title"}}Messages · Mail to Webhook{{end}}
+{{define "content"}}
+  <header class="page__header">
+    <div class="page__heading">
+      <h1 class="page__title">Messages</h1>
+    </div>
+  </header>
+  {{/* A plain GET form: the filters are in the URL, so a filtered list is shareable and
+       the polling fragment can carry exactly the same query string. */}}
+  {{with .Doc}}
+  <form class="toolbar" method="get" action="/ui/messages">
+    <div class="field">
+      <label class="field__label" for="filter-status">Status</label>
+      <select class="field__input" id="filter-status" name="status">
+        <option value="">any</option>
+        {{range .Statuses}}
+          <option value="{{.}}" {{if eq $.Doc.Filters.Status .}}selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label" for="filter-from">From</label>
+      <input class="field__input" id="filter-from" type="text" name="from" value="{{.Filters.From}}" placeholder="sender" />
+    </div>
+    <div class="field">
+      <label class="field__label" for="filter-to">To</label>
+      <input class="field__input" id="filter-to" type="text" name="to" value="{{.Filters.To}}" placeholder="recipient" />
+    </div>
+    <div class="field">
+      <label class="field__label" for="filter-subject">Subject</label>
+      <input class="field__input" id="filter-subject" type="text" name="subject" value="{{.Filters.Subject}}" />
+    </div>
+    <div class="field">
+      <label class="field__label" for="filter-since">From date</label>
+      <input class="field__input" id="filter-since" type="date" name="since" value="{{.Filters.Since}}" />
+    </div>
+    <div class="field">
+      <label class="field__label" for="filter-until">To date</label>
+      <input class="field__input" id="filter-until" type="date" name="until" value="{{.Filters.Until}}" />
+    </div>
+    <button class="button" type="submit">Filter</button>
+  </form>
+  {{end}}
+  {{template "_messages" .Doc}}
+{{end}}

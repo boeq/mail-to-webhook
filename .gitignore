@@ -1,0 +1,14 @@
+# local state and secrets
+.env
+/data/
+/.data/
+docker-compose.override.yml
+/.local/
+
+# build output
+/bin/
+/internal/ui/static/app.css
+node_modules/
+
+# the design notes this build started from
+files.zip

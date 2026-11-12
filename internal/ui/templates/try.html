@@ -1,0 +1,56 @@
+{{define "title"}}Send a test mail · Mail to Webhook{{end}}
+{{define "content"}}
+  {{with .Doc}}
+  <div class="page page--narrow">
+    <header class="page__header">
+      <div class="page__heading">
+        <h1 class="page__title">Send a test mail</h1>
+        <p class="page__subtitle">
+          Sends one mail through this service's own SMTP listener, so it takes the path a
+          real mail takes: recipient check, parsing, payload, webhook. The answer comes
+          back when the webhook has answered.
+        </p>
+      </div>
+    </header>
+
+    {{if .Error}}
+      <div id="try-error" class="notice notice--error" role="alert">
+        {{icon "alert"}}
+        <div class="notice__body">{{.Error}}</div>
+      </div>
+    {{end}}
+    <div id="action-result" class="notice notice--info" role="status" hidden></div>
+
+    {{/* A plain post still works without JavaScript: the server then answers with a
+         redirect instead of the JSON the script reads. */}}
+    <form id="try-form" method="post" action="{{.SendURL}}" class="form" hx-post="{{.SendURL}}" hx-swap="none">
+      <div class="field">
+        <label class="field__label" for="try-to">To</label>
+        <input id="try-to" class="field__input" name="to" type="email" required value="{{.To}}"
+          placeholder="mailbox@example.org" aria-describedby="try-to-hint" />
+        <p id="try-to-hint" class="field__hint">an address this server accepts mail for</p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="try-subject">Subject</label>
+        <input id="try-subject" class="field__input" name="subject" type="text" value="{{.Subject}}" />
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="try-body">Body</label>
+        <textarea id="try-body" class="field__input field__textarea" name="body" rows="5"
+          placeholder="Leave empty for a standard line of text."></textarea>
+      </div>
+
+      <label class="checkbox" for="try-attach">
+        <input id="try-attach" name="attach" type="checkbox" value="1" />
+        Attach a small PDF
+      </label>
+
+      <div class="field__actions">
+        <button id="try-submit" class="button button--primary" type="submit">Send test mail</button>
+      </div>
+    </form>
+  </div>
+  {{end}}
+{{end}}

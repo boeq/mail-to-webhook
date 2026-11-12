@@ -1,0 +1,41 @@
+{{define "title"}}Addresses · Mail to Webhook{{end}}
+{{define "content"}}
+  {{with .Doc}}
+  <header class="page__header">
+    <div class="page__heading">
+      <h1 class="page__title">Addresses</h1>
+      <p class="page__subtitle">
+        The recipient addresses the consumer has been asked about. A known address is
+        accepted without asking again until it is due for a re-check.
+      </p>
+    </div>
+  </header>
+  {{if not .Enabled}}
+    <div id="check-off" class="notice notice--info">
+      {{icon "info"}}
+      <div class="notice__body">
+        The recipient check is off: RECIPIENT_CHECK_URL is not set, so every address in
+        the allowed domains is accepted.
+      </div>
+    </div>
+  {{end}}
+  <div id="action-result" class="notice notice--info" role="status" hidden></div>
+  <form class="toolbar" method="get" action="/ui/addresses">
+    <div class="field">
+      <label class="field__label" for="filter-status">Status</label>
+      <select class="field__input" id="filter-status" name="status">
+        <option value="">any</option>
+        {{range .Statuses}}
+          <option value="{{.}}" {{if eq $.Doc.Status .}}selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label" for="filter-q">Address</label>
+      <input class="field__input" id="filter-q" type="text" name="q" value="{{.Query}}" placeholder="part of an address" />
+    </div>
+    <button class="button" type="submit">Filter</button>
+  </form>
+  {{end}}
+  {{template "_addresses" .Doc}}
+{{end}}

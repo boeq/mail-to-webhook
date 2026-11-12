@@ -1,0 +1,49 @@
+{{/* The effective configuration. A secret's value never reaches this template: its row
+     carries `Set` and nothing else. */}}
+{{define "_settings"}}
+<div id="settings" class="stack">
+  <section class="panel">
+    <header class="panel__header">
+      <h2 class="panel__title">{{icon "info"}} Version and storage</h2>
+    </header>
+    <div class="panel__body">
+      <dl id="settings-status" class="facts facts--wide">
+        <div class="facts__row"><dt>Version</dt><dd class="mono">{{dash .Version}}</dd></div>
+        <div class="facts__row"><dt>Data directory</dt><dd><code>{{.DataDir}}</code></dd></div>
+        <div class="facts__row"><dt>Database</dt><dd>{{bytes .DatabaseBytes}}</dd></div>
+        <div class="facts__row"><dt>Spool</dt><dd>{{bytes .SpoolBytes}} of raw messages</dd></div>
+        <div class="facts__row"><dt>Retention</dt><dd>{{.RetentionDays}} days</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="panel">
+    <header class="panel__header">
+      <h2 class="panel__title">{{icon "gear"}} Configuration</h2>
+    </header>
+    <div class="panel__body">
+      <div class="table-wrap">
+        <table id="settings-values" class="table">
+          <thead><tr><th>Key</th><th>Value</th></tr></thead>
+          <tbody>
+            {{range .Settings}}
+              <tr>
+                <td><code>{{.Key}}</code></td>
+                <td>
+                  {{if .Secret}}
+                    {{if .Set}}{{badge "setting" "set"}}{{else}}{{badge "setting" "not set"}}{{end}}
+                  {{else if .Set}}
+                    <code>{{.Value}}</code>
+                  {{else}}
+                    <span class="muted">not set</span>
+                  {{end}}
+                </td>
+              </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+{{end}}

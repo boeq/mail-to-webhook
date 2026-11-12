@@ -1,0 +1,41 @@
+{{/* The refused-attempts fragment, newest first. Like the message table it only
+     re-fetches itself where new rows can appear: the unfiltered first page. */}}
+{{define "_refused"}}
+<div
+  id="refused"
+  {{if .Trigger}}hx-get="{{.TableURL}}" hx-swap="outerHTML" hx-trigger="{{.Trigger}}"{{end}}
+>
+  {{if .Rows}}
+    <div class="table-wrap panel">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Last seen</th><th>Remote address</th><th>Sender</th><th>Recipient</th>
+            <th>Reason</th><th>Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Rows}}
+            <tr>
+              <td class="table__time" title="first seen {{ts .FirstAt}}">{{ts .LastAt}}</td>
+              <td class="mono">{{dash .RemoteAddr}}</td>
+              <td class="mono">{{dash .MailFrom}}</td>
+              <td class="mono">{{dash .Rcpt}}</td>
+              <td>{{badge "reason" .Reason}}</td>
+              <td class="num">{{.Count}}</td>
+            </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  {{else}}
+    <div class="empty">
+      <span class="empty__icon">{{icon "x-circle" "icon--lg"}}</span>
+      <h3 class="empty__title">Nothing has been refused.</h3>
+    </div>
+  {{end}}
+  {{if .OlderURL}}
+    <a class="button" href="{{.OlderURL}}">Older</a>
+  {{end}}
+</div>
+{{end}}
