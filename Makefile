@@ -7,7 +7,7 @@ GO      := scripts/go.sh
 BIN     := bin/mail-to-webhook
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-.PHONY: build css test vet node-check e2e check run banners docker clean
+.PHONY: build css test vet node-check e2e acme-e2e check run banners docker clean
 
 # The stylesheet: Tailwind v4 builds internal/ui/styles/index.css into
 # internal/ui/static/app.css, which git ignores and the binary embeds.
@@ -32,6 +32,11 @@ node-check:
 # Real SMTP client, real binary, real webhook receiver.
 e2e: build
 	python3 scripts/e2e_test.py $(BIN)
+
+# Orders a real certificate from Pebble, the test CA Let's Encrypt publishes,
+# and checks STARTTLS with it. Needs Docker and the host network.
+acme-e2e: build
+	python3 scripts/acme_e2e.py $(BIN)
 
 check: vet test node-check e2e
 

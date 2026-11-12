@@ -54,7 +54,18 @@ Large providers send for many customers from the same addresses. Keep the per-ad
 | `MAX_RECIPIENTS` | `50` | Recipients per message. |
 | `MAX_LINE_BYTES` | `1048576` | Longest line accepted. |
 | `READ_TIMEOUT`, `WRITE_TIMEOUT` | `60s` | Socket timeouts. |
-| `TLS_CERT`, `TLS_KEY` | | Set both to offer STARTTLS. |
+
+## STARTTLS
+
+Without a certificate, mail arrives unencrypted. There are two ways to get one; use one of them. See [deployment.md](deployment.md#starttls).
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `ACME_ENABLED` | `false` | Obtain a certificate for `SMTP_DOMAIN` from Let's Encrypt and keep it renewed. Setting it accepts the CA's terms of service. |
+| `ACME_EMAIL` | | Contact address given to the CA. Optional. |
+| `ACME_DIRECTORY_URL` | Let's Encrypt | Directory of another ACME CA, or of Let's Encrypt's staging environment. |
+| `ACME_HTTP_ADDR` | `:8089` | Listener for the CA's validation request. Publish it as port 80. |
+| `TLS_CERT`, `TLS_KEY` | | A certificate and key of your own, as PEM files. Set both. |
 
 ## Payload
 

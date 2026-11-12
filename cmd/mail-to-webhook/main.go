@@ -23,6 +23,7 @@ import (
 	"github.com/boeq/mail-to-webhook/internal/recipients"
 	"github.com/boeq/mail-to-webhook/internal/smtpsrv"
 	"github.com/boeq/mail-to-webhook/internal/store"
+	"github.com/boeq/mail-to-webhook/internal/tlscert"
 	"github.com/boeq/mail-to-webhook/internal/ui"
 	"github.com/boeq/mail-to-webhook/internal/webhook"
 )
@@ -105,18 +106,40 @@ func run() error {
 		Now: time.Now,
 	}
 
-	smtpServer, err := smtpsrv.NewServer(backend)
-	if err != nil {
-		return err
+	// The certificate for STARTTLS: from files, through ACME, or none.
+	var certs tlscert.Source
+	var keeper *tlscert.ACME
+	var acmeServer *http.Server
+	var acmeListener net.Listener
+	tlsStatus := tlscert.Off
+	switch {
+	case cfg.TLSCert != "":
+		static, err := tlscert.LoadFiles(cfg.TLSCert, cfg.TLSKey)
+		if err != nil {
+			return fmt.Errorf("TLS_CERT/TLS_KEY: %w", err)
+		}
+		certs, tlsStatus = static, static.Status
+	case cfg.ACMEEnabled:
+		keeper = tlscert.NewACME(cfg.SMTPDomain, cfg.ACMEEmail, cfg.ACMEDirectoryURL, cfg.DataDir, log)
+		// The CA fetches its challenge from port 80 of the host; this listener
+		// answers those requests and nothing else.
+		acmeListener, err = net.Listen("tcp", cfg.ACMEHTTPAddr)
+		if err != nil {
+			return fmt.Errorf("ACME_HTTP_ADDR %s: %w", cfg.ACMEHTTPAddr, err)
+		}
+		acmeServer = &http.Server{Handler: keeper, ReadHeaderTimeout: 10 * time.Second}
+		certs, tlsStatus = keeper, keeper.Status
 	}
+
+	smtpServer := smtpsrv.New(backend, certs)
 	smtpListener, err := smtpsrv.Listen(backend)
 	if err != nil {
 		return fmt.Errorf("SMTP_ADDR %s: %w", cfg.SMTPAddr, err)
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", health(st, checker))
-	mux.HandleFunc("GET /readyz", health(st, checker))
+	mux.HandleFunc("GET /healthz", health(st, checker, tlsStatus))
+	mux.HandleFunc("GET /readyz", health(st, checker, tlsStatus))
 	if cfg.UIEnabled {
 		ui.Mount(mux, &ui.UI{
 			Cfg:      cfg,
@@ -126,6 +149,7 @@ func run() error {
 			Log:      log,
 			Version:  version,
 			SMTPAddr: smtpListener.Addr().String(),
+			TLS:      tlsStatus,
 			Now:      time.Now,
 		})
 	}
@@ -138,8 +162,16 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	failed := make(chan error, 2)
+	failed := make(chan error, 3)
 	go engine.Run(ctx)
+	if keeper != nil {
+		go keeper.Run(ctx)
+		go func() {
+			if err := acmeServer.Serve(acmeListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				failed <- fmt.Errorf("acme http: %w", err)
+			}
+		}()
+	}
 	go func() {
 		if err := smtpServer.Serve(smtpListener); err != nil && !errors.Is(err, smtp.ErrServerClosed) {
 			failed <- fmt.Errorf("smtp: %w", err)
@@ -158,7 +190,7 @@ func run() error {
 		"webhook", wh.URL(),
 		"recipient_check", checker.Enabled(),
 		"ui", cfg.UIEnabled,
-		"starttls", cfg.TLSCert != "",
+		"starttls", tlsStatus().Mode,
 	)
 
 	select {
@@ -176,6 +208,9 @@ func run() error {
 	defer cancel()
 	_ = smtpServer.Shutdown(grace)
 	_ = httpServer.Shutdown(grace)
+	if acmeServer != nil {
+		_ = acmeServer.Shutdown(grace)
+	}
 	return nil
 }
 
@@ -197,7 +232,7 @@ func newLogger(level string) *slog.Logger {
 // health answers 200 while the history is readable. The recipient check is
 // reported but does not fail the probe: when the consumer is down, mail is
 // deferred, which is the service working as intended.
-func health(st *store.Store, checker *recipients.Checker) http.HandlerFunc {
+func health(st *store.Store, checker *recipients.Checker, tlsStatus func() tlscert.Status) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		body := map[string]any{"status": "ok"}
 		code := http.StatusOK
@@ -208,6 +243,13 @@ func health(st *store.Store, checker *recipients.Checker) http.HandlerFunc {
 		}
 		if h := checker.Health(); h.Enabled {
 			body["recipient_check"] = map[string]any{"ok": h.OK}
+		}
+		if t := tlsStatus(); t.Mode != tlscert.ModeOff {
+			starttls := map[string]any{"mode": t.Mode, "ready": t.Ready}
+			if t.Ready {
+				starttls["expires"] = t.NotAfter.UTC().Format(time.RFC3339)
+			}
+			body["starttls"] = starttls
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(code)

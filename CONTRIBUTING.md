@@ -14,6 +14,7 @@ make test       # unit tests only
 make e2e        # real SMTP client, real binary, real webhook receiver
 make run        # a local instance on 127.0.0.1:2525, UI on http://127.0.0.1:8080/ui/
 make css        # rebuild the stylesheet after changing a template or a style
+make acme-e2e   # order a certificate from Pebble, Let's Encrypt's test CA (needs Docker)
 ```
 
 ## Layout
@@ -24,6 +25,7 @@ internal/config/       environment variables
 internal/smtpsrv/      the SMTP conversation and its reply codes
 internal/recipients/   the known-address list and the lookup
 internal/limits/       connection and abuse limits
+internal/tlscert/      the STARTTLS certificate: from files, or through ACME
 internal/mailparse/    MIME parsing
 internal/payload/      the JSON document and its normalisations
 internal/consumer/     the validation rules of a strict consumer

@@ -9,7 +9,6 @@ package smtpsrv
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -38,32 +37,6 @@ type Backend struct {
 	Limiter *limits.Limiter
 	Log     *slog.Logger
 	Now     func() time.Time
-}
-
-// NewServer returns a go-smtp server set up from the configuration.
-func NewServer(b *Backend) (*smtp.Server, error) {
-	srv := smtp.NewServer(b)
-	srv.Addr = b.Cfg.SMTPAddr
-	srv.Domain = b.Cfg.SMTPDomain
-	srv.MaxMessageBytes = b.Cfg.MaxMessageBytes
-	srv.MaxRecipients = b.Cfg.MaxRecipients
-	srv.MaxLineLength = b.Cfg.MaxLineBytes
-	srv.ReadTimeout = b.Cfg.ReadTimeout
-	srv.WriteTimeout = b.Cfg.WriteTimeout
-	// Without SMTPUTF8 a sender with an internationalised address cannot
-	// deliver at all. BINARYMIME stays off: senders encode instead, and
-	// nothing is gained by taking unencoded binary.
-	srv.EnableSMTPUTF8 = true
-	srv.ErrorLog = logAdapter{b.Log}
-
-	if b.Cfg.TLSCert != "" {
-		cert, err := tls.LoadX509KeyPair(b.Cfg.TLSCert, b.Cfg.TLSKey)
-		if err != nil {
-			return nil, fmt.Errorf("TLS_CERT/TLS_KEY: %w", err)
-		}
-		srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
-	}
-	return srv, nil
 }
 
 // Listen opens the SMTP port behind the connection limits.

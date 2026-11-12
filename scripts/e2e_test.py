@@ -6,6 +6,8 @@ Usage: python3 scripts/e2e_test.py /path/to/inbound-binary
 import base64
 import email.utils
 import re
+import shutil
+import ssl
 import hashlib
 import hmac
 import json
@@ -19,6 +21,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import warnings
 from email.message import EmailMessage
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -716,6 +719,80 @@ def strict(binary, failures):
         stop(proc)
 
 
+def starttls(binary, failures):
+    """STARTTLS with a certificate read from files."""
+    if not shutil.which("openssl"):
+        print("skipping the STARTTLS scenarios: openssl is not installed")
+        return
+    workdir = tempfile.mkdtemp(prefix="m2w-e2e-tls-")
+    cert, key = os.path.join(workdir, "cert.pem"), os.path.join(workdir, "key.pem")
+    subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", key, "-out", cert,
+                    "-days", "2", "-subj", "/CN=mx.test", "-addext", "subjectAltName=DNS:mx.test"],
+                   check=True, capture_output=True)
+    mode.update(status=200, status_for={})
+    received.clear()
+
+    env = dict(os.environ,
+               SMTP_ADDR="127.0.0.1:12527",
+               SMTP_DOMAIN="mx.test",
+               WEBHOOK_URL="http://127.0.0.1:9099/inbound",
+               ALLOWED_DOMAINS="example.org",
+               TLS_CERT=cert,
+               TLS_KEY=key,
+               MAX_CONNECTIONS_PER_IP_PER_MINUTE="0",
+               HTTP_ADDR="127.0.0.1:9096",
+               DATA_DIR=os.path.join(workdir, "data"))
+    proc = subprocess.Popen([binary], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    try:
+        assert wait_port(12527), "smtp did not start"
+        mail = "From: a@sender.test\r\nTo: box@example.org\r\nSubject: {}\r\n\r\nbody\r\n"
+
+        # --- T1. the connection is upgraded and the mail says so -------------
+        trusted = ssl.create_default_context(cafile=cert)
+        trusted.check_hostname = False   # the client connects to 127.0.0.1
+        with smtplib.SMTP("127.0.0.1", 12527, timeout=15) as s:
+            s.ehlo()
+            if not s.has_extn("starttls"):
+                failures.append("T1 STARTTLS is not offered")
+                return
+            s.starttls(context=trusted)
+            version = s.sock.version()
+            s.sendmail("a@sender.test", ["box@example.org"], mail.format("over tls"))
+        time.sleep(0.4)
+        if version not in ("TLSv1.2", "TLSv1.3"):
+            failures.append(f"T1 negotiated {version}")
+        if not received or received[-1]["body"]["Envelope"]["TLS"] is not True:
+            failures.append("T1 Envelope.TLS is not true for a mail sent over TLS")
+
+        # --- T2. a sender that skips STARTTLS is still served ----------------
+        with smtplib.SMTP("127.0.0.1", 12527, timeout=15) as s:
+            s.sendmail("a@sender.test", ["box@example.org"], mail.format("in clear text"))
+        time.sleep(0.4)
+        if len(received) != 2 or received[-1]["body"]["Envelope"]["TLS"] is not False:
+            failures.append("T2 a mail in clear text was refused or marked as encrypted")
+
+        # --- T3. TLS 1.1 is refused -----------------------------------------
+        old = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        old.check_hostname, old.verify_mode = False, ssl.CERT_NONE
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            old.minimum_version, old.maximum_version = ssl.TLSVersion.TLSv1, ssl.TLSVersion.TLSv1_1
+        try:
+            with smtplib.SMTP("127.0.0.1", 12527, timeout=15) as s:
+                s.ehlo()
+                s.starttls(context=old)
+            failures.append("T3 a TLS 1.1 handshake succeeded")
+        except (ssl.SSLError, smtplib.SMTPException, OSError):
+            pass
+
+        status, _, body = http("GET", "http://127.0.0.1:9096/healthz")
+        state = json.loads(body).get("starttls", {})
+        if status != 200 or state.get("mode") != "file" or state.get("ready") is not True:
+            failures.append(f"T4 /healthz does not report the certificate: {body}")
+    finally:
+        stop(proc)
+
+
 def main():
     binary = sys.argv[1]
     httpd = HTTPServer(("127.0.0.1", 9099), Handler)
@@ -724,6 +801,7 @@ def main():
     failures = []
     classic(binary, failures)
     strict(binary, failures)
+    starttls(binary, failures)
 
     if failures:
         print("FAIL")

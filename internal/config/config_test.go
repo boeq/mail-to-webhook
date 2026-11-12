@@ -80,6 +80,40 @@ func TestCredentialsInTheRecipientCheckURL(t *testing.T) {
 	}
 }
 
+// A CA only issues for a public hostname, so anything else is refused at
+// startup rather than failing an order later.
+func TestACMESettings(t *testing.T) {
+	t.Setenv("WEBHOOK_URL", "https://app.example.org/hook")
+	t.Setenv("ACME_ENABLED", "true")
+
+	for _, host := range []string{"", "inbound.local", "mx", "192.0.2.10", "mail.localhost", "server.local"} {
+		t.Setenv("SMTP_DOMAIN", host)
+		if _, err := Load(); err == nil || !strings.Contains(err.Error(), "ACME_ENABLED needs SMTP_DOMAIN") {
+			t.Errorf("SMTP_DOMAIN %q: %v", host, err)
+		}
+	}
+
+	t.Setenv("SMTP_DOMAIN", "mx.example.org")
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.ACMEEnabled || c.ACMEHTTPAddr != ":8089" || c.ACMEDirectoryURL != "" {
+		t.Errorf("acme defaults: %+v", c)
+	}
+
+	t.Setenv("ACME_DIRECTORY_URL", "acme-staging.example")
+	t.Setenv("ACME_EMAIL", "not an address")
+	t.Setenv("TLS_CERT", "/certs/fullchain.pem")
+	t.Setenv("TLS_KEY", "/certs/privkey.pem")
+	_, err = Load()
+	for _, want := range []string{"ACME_DIRECTORY_URL", "ACME_EMAIL", "ACME_ENABLED and TLS_CERT"} {
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("error does not mention %s: %v", want, err)
+		}
+	}
+}
+
 func TestEveryMistakeIsReported(t *testing.T) {
 	t.Setenv("WEBHOOK_URL", "ftp://nope")
 	t.Setenv("MAX_RECIPIENTS", "many")

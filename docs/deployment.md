@@ -27,14 +27,79 @@ Check that your hosting provider allows inbound connections on port 25, and open
 
 ## STARTTLS
 
-A sending server encrypts the connection when STARTTLS is offered. Without it, mail arrives in clear text. Mount a certificate for `SMTP_DOMAIN` and set:
+A sending server encrypts the connection when STARTTLS is offered. Without it, mail arrives in clear text. Senders that skip STARTTLS are still accepted either way.
+
+### Automatic, with Let's Encrypt
+
+```
+SMTP_DOMAIN=mx.example.org
+ACME_ENABLED=true
+ACME_EMAIL=you@example.org
+```
+
+```yaml
+ports:
+  - "25:2525"
+  - "80:8089"
+```
+
+The service orders a certificate for `SMTP_DOMAIN` and renews it when a third of its lifetime is left. Setting `ACME_ENABLED=true` accepts the [Let's Encrypt Subscriber Agreement](https://letsencrypt.org/repository/).
+
+Two things must be true before the CA will issue:
+
+- `SMTP_DOMAIN` resolves to this server in public DNS.
+- Port 80 of that host reaches the service. The CA fetches a token from `http://<SMTP_DOMAIN>/.well-known/acme-challenge/...`. The listener on `ACME_HTTP_ADDR` answers that path and returns `404` for everything else.
+
+STARTTLS is offered from the moment the certificate exists, usually within a minute of the first start, and no restart is needed. Until then mail is accepted without it. The certificate and the account key are kept in `DATA_DIR/acme`, so a restart does not order again.
+
+If the order fails, the reason is in the log and the next attempt comes after 2 minutes, then 10, 30, 60 and 120. Let's Encrypt allows five failed validations per host and hour, and this stays below it. While you are setting things up, point `ACME_DIRECTORY_URL` at the staging directory, `https://acme-staging-v02.api.letsencrypt.org/directory`. Its certificates are not trusted, and its limits are far higher.
+
+`/healthz` reports the state under `starttls`, and the sidebar of the UI shows it.
+
+#### When a web server already holds port 80
+
+Port 80 does not have to be free. It has to pass that one path on. Keep the listener on localhost:
+
+```yaml
+ports:
+  - "25:2525"
+  - "127.0.0.1:8089:8089"
+```
+
+and forward the path from the web server. Caddy:
+
+```
+http://mx.example.org {
+    reverse_proxy /.well-known/acme-challenge/* 127.0.0.1:8089
+}
+```
+
+nginx:
+
+```nginx
+server {
+    listen 80;
+    server_name mx.example.org;
+    location /.well-known/acme-challenge/ {
+        proxy_pass http://127.0.0.1:8089;
+    }
+}
+```
+
+A Caddy that obtains certificates for its other sites keeps doing so: it answers its own challenges and forwards the ones it does not know. `make acme-e2e` tests this arrangement against a real Caddy.
+
+This needs the MX hostname to resolve to the machine the web server runs on. If nothing on port 80 of that address can reach the service, use a certificate of your own.
+
+### With your own certificate
+
+Mount a certificate for `SMTP_DOMAIN` and set:
 
 ```
 TLS_CERT=/certs/fullchain.pem
 TLS_KEY=/certs/privkey.pem
 ```
 
-The certificate is read at startup. Restart the container after renewing it.
+The files are read at startup. Restart the container after renewing them.
 
 ## The UI behind a proxy
 
@@ -57,6 +122,7 @@ Everything is under `DATA_DIR` (`/data`, a volume):
 
 - `app.db`: messages, deliveries, the address list, refused attempts.
 - `spool/`: the raw messages, one `.eml` each.
+- `acme/`: the certificate, its private key and the CA account key, when `ACME_ENABLED` is set.
 
 Both are pruned after `RETENTION_DAYS` (30). The directory holds mail content, so restrict who can read it. `STORE_RAW=false` keeps only metadata: nothing can then be viewed or sent again.
 

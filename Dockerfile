@@ -27,8 +27,10 @@ COPY --from=build /out/mail-to-webhook /usr/local/bin/mail-to-webhook
 COPY --from=build --chown=nonroot:nonroot /out/data /data
 ENV DATA_DIR=/data SMTP_ADDR=:2525 HTTP_ADDR=:8080
 VOLUME ["/data"]
-# 2525 is SMTP: publish it as 25. 8080 is health and the operator UI: keep it private.
-EXPOSE 2525 8080
+# 2525 is SMTP: publish it as 25. 8080 is health and the operator UI: keep it
+# private. 8089 answers the CA's validation request when ACME_ENABLED is set:
+# publish it as 80.
+EXPOSE 2525 8080 8089
 USER nonroot
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD ["/usr/local/bin/mail-to-webhook", "healthcheck"]
 ENTRYPOINT ["/usr/local/bin/mail-to-webhook"]

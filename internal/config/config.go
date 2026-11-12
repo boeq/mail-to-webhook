@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"sort"
@@ -24,9 +25,15 @@ type Config struct {
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 
-	// STARTTLS (optional). Both must be set to enable.
+	// STARTTLS (optional), in one of two ways: a certificate from files, both
+	// set; or one obtained and renewed through ACME for SMTPDomain.
 	TLSCert string
 	TLSKey  string
+
+	ACMEEnabled      bool
+	ACMEEmail        string // optional contact for the CA
+	ACMEDirectoryURL string // empty means Let's Encrypt
+	ACMEHTTPAddr     string // serves the http-01 challenge; publish it as port 80
 
 	// Recipient policy. Empty AllowedDomains == accept every domain.
 	AllowedDomains   []string
@@ -104,6 +111,11 @@ func Load() (*Config, error) {
 		TLSCert:         e.str("TLS_CERT", ""),
 		TLSKey:          e.str("TLS_KEY", ""),
 
+		ACMEEnabled:      e.bool("ACME_ENABLED", false),
+		ACMEEmail:        e.str("ACME_EMAIL", ""),
+		ACMEDirectoryURL: e.str("ACME_DIRECTORY_URL", ""),
+		ACMEHTTPAddr:     e.str("ACME_HTTP_ADDR", ":8089"),
+
 		AllowedDomains:   e.list("ALLOWED_DOMAINS"),
 		AllowedMailboxes: e.list("ALLOWED_MAILBOXES"),
 
@@ -171,6 +183,9 @@ func Load() (*Config, error) {
 	if (c.TLSCert == "") != (c.TLSKey == "") {
 		e.fail("TLS_CERT and TLS_KEY must be set together")
 	}
+	if c.ACMEEnabled {
+		c.checkACME(e)
+	}
 	if c.FallbackSender == "" {
 		c.FallbackSender = "mailer-daemon@" + c.SMTPDomain
 	}
@@ -204,6 +219,25 @@ func Load() (*Config, error) {
 		return nil, errors.New(strings.Join(e.errs, "; "))
 	}
 	return c, nil
+}
+
+// checkACME refuses a setup in which no CA could issue a certificate.
+func (c *Config) checkACME(e *env) {
+	if c.TLSCert != "" {
+		e.fail("ACME_ENABLED and TLS_CERT are two ways to get a certificate; use one")
+	}
+	// A CA only issues for a public DNS name, which SMTP_DOMAIN must then be.
+	host := c.SMTPDomain
+	if host == "inbound.local" || !strings.Contains(host, ".") || net.ParseIP(host) != nil ||
+		strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".localhost") {
+		e.fail(fmt.Sprintf("ACME_ENABLED needs SMTP_DOMAIN to be the public hostname of this server, not %q", host))
+	}
+	if c.ACMEDirectoryURL != "" && !isHTTP(c.ACMEDirectoryURL) {
+		e.fail("ACME_DIRECTORY_URL must be an http(s) URL")
+	}
+	if c.ACMEEmail != "" && !consumer.IsEmail(c.ACMEEmail) {
+		e.fail("ACME_EMAIL is not a valid address")
+	}
 }
 
 // splitWebhookCredentials moves "https://user:pass@host/path" credentials out
@@ -273,6 +307,10 @@ func (c *Config) Settings() []Setting {
 		"WRITE_TIMEOUT":                     c.WriteTimeout.String(),
 		"TLS_CERT":                          c.TLSCert,
 		"TLS_KEY":                           c.TLSKey,
+		"ACME_ENABLED":                      strconv.FormatBool(c.ACMEEnabled),
+		"ACME_EMAIL":                        c.ACMEEmail,
+		"ACME_DIRECTORY_URL":                c.ACMEDirectoryURL,
+		"ACME_HTTP_ADDR":                    c.ACMEHTTPAddr,
 		"ALLOWED_DOMAINS":                   strings.Join(c.AllowedDomains, ","),
 		"ALLOWED_MAILBOXES":                 strings.Join(c.AllowedMailboxes, ","),
 		"RECIPIENT_CHECK_URL":               c.RecipientCheckURL,

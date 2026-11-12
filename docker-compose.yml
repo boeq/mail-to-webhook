@@ -10,12 +10,16 @@ services:
     ports:
       # The public MX port on the host, an unprivileged port in the container.
       - "25:2525"
+      # Only with ACME_ENABLED=true: the CA validates the hostname on port 80.
+      # If a web server holds port 80, bind this to localhost instead and let it
+      # forward /.well-known/acme-challenge/ (see docs/deployment.md).
+      # - "80:8089"
       # Health and the operator UI. The UI shows mail, so it stays on localhost:
       # put a reverse proxy with authentication in front, or set UI_AUTH_USER.
       - "127.0.0.1:8080:8080"
     volumes:
       - data:/data
-      # STARTTLS: mount the certificate and set TLS_CERT / TLS_KEY in .env.
+      # STARTTLS with a certificate of your own: mount it and set TLS_CERT / TLS_KEY.
       # - ./certs:/certs:ro
     read_only: true
     cap_drop: [ALL]

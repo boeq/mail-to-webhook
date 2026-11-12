@@ -26,6 +26,7 @@ import (
 	"github.com/boeq/mail-to-webhook/internal/delivery"
 	"github.com/boeq/mail-to-webhook/internal/recipients"
 	"github.com/boeq/mail-to-webhook/internal/store"
+	"github.com/boeq/mail-to-webhook/internal/tlscert"
 )
 
 //go:embed templates/*.html
@@ -49,7 +50,9 @@ type UI struct {
 	Log      *slog.Logger
 	Version  string
 	SMTPAddr string
-	Now      func() time.Time
+	// TLS reports the STARTTLS certificate. Nil means there is none configured.
+	TLS func() tlscert.Status
+	Now func() time.Time
 
 	once      sync.Once
 	fragments *template.Template
@@ -265,6 +268,9 @@ type shellStatus struct {
 	// Check is "ok", "failing" or "off".
 	Check      string
 	CheckError string
+	// TLS is "on", "waiting" (no certificate yet) or "off".
+	TLS      string
+	TLSTitle string
 }
 
 func (u *UI) shellStatus() shellStatus {
@@ -277,6 +283,17 @@ func (u *UI) shellStatus() shellStatus {
 		if !h.OK {
 			st.Check = "failing"
 			st.CheckError = h.LastError
+		}
+	}
+	st.TLS, st.TLSTitle = "off", "No certificate is configured, so mail arrives unencrypted"
+	if u.TLS != nil {
+		switch t := u.TLS(); {
+		case t.Ready:
+			st.TLS = "on"
+			st.TLSTitle = "Certificate for " + t.Host + ", valid until " + t.NotAfter.UTC().Format("2006-01-02")
+		case t.Mode != tlscert.ModeOff:
+			st.TLS = "waiting"
+			st.TLSTitle = "No certificate yet; STARTTLS is offered once one has been obtained"
 		}
 	}
 	return st

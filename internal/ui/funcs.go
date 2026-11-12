@@ -21,6 +21,7 @@ var tones = map[string]map[string]string{
 	"setting":   {"set": "done", "not set": "neutral"},
 	"reason":    {store.ReasonBlocked: "wait", store.ReasonTooManyBad: "wait"},
 	"check":     {"ok": "done", "failing": "danger", "off": "neutral"},
+	"tls":       {"on": "done", "waiting": "wait", "off": "neutral"},
 }
 
 func toneOf(kind, value string) string {

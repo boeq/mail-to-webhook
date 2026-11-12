@@ -50,6 +50,7 @@ The operator UI is at <http://127.0.0.1:8080/ui/>. To try it before you have an 
 - Checks recipients before accepting mail. It can ask your application whether an address exists and refuse the rest at `RCPT TO`, before any content is sent. Answers are kept in a local list. See [docs/recipient-check.md](docs/recipient-check.md).
 - Normalises what strict consumers reject. A blind-copied or forwarded message still names your address in `ToFull`. `Date` is always parseable. A message without a `Message-ID` gets a stable one. See [docs/payload.md](docs/payload.md).
 - Signs each request. `X-Mail-To-Webhook-Signature` is an HMAC-SHA256 over the timestamp and the raw body.
+- Offers STARTTLS. It can order its certificate from Let's Encrypt and renew it by itself. See [docs/deployment.md](docs/deployment.md#starttls).
 - Keeps a history. Every message, each delivery attempt and each refused recipient is stored for 30 days and shown in the UI, where a message can be sent again.
 
 ## The payload
@@ -96,7 +97,8 @@ The operator UI is at <http://127.0.0.1:8080/ui/>. To try it before you have an 
 | `ALLOWED_DOMAINS` | The domains you receive mail for. Leaving it empty accepts mail for any domain. |
 | `RECIPIENT_CHECK_URL` | Endpoint that says which addresses exist. Empty turns the check off. |
 | `SMTP_DOMAIN` | The hostname your MX record points to. |
-| `TLS_CERT`, `TLS_KEY` | Certificate for STARTTLS. |
+| `ACME_ENABLED` | Get a STARTTLS certificate from Let's Encrypt and keep it renewed. |
+| `TLS_CERT`, `TLS_KEY` | Or a certificate of your own for STARTTLS. |
 | `UI_AUTH_USER`, `UI_AUTH_PASS` | Basic auth for the operator UI. |
 
 All settings are in [docs/configuration.md](docs/configuration.md). Running it as a real MX is in [docs/deployment.md](docs/deployment.md).
