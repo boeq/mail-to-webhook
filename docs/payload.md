@@ -50,7 +50,7 @@ A strict consumer rejects some messages that senders make each day. The service 
 |---|---|---|
 | Your address is only in the envelope: a blind copy, an automatic forward, an alias | The service adds the envelope recipient to `ToFull` | `ENSURE_RECIPIENT_IN_TO` |
 | No `Date` header, or a `Date` header that a parser cannot read | The time of receipt | always |
-| No `Message-ID`, or an empty `Message-ID` | `m2w.<hash of the message>@<SMTP_DOMAIN>` in `MessageID` and in `Headers`. The value is the same on each attempt | `SYNTHESIZE_MESSAGE_ID` |
+| No `Message-ID`, or an empty `Message-ID` | `m2w.<hash of the message>@<SMTP_DOMAIN>` in `MessageID` and in `Headers`, with the first hostname of `SMTP_DOMAIN`. The value is the same on each attempt | `SYNTHESIZE_MESSAGE_ID` |
 | `From` has no address that you can use (`From: Mailer Daemon`, a bounce, an internationalised address) | The envelope sender. If there is none, `FALLBACK_SENDER`. The display name stays | `FALLBACK_SENDER` |
 | HTML only | The service makes `TextBody` from the HTML | `TEXT_FROM_HTML` |
 | A message forwarded as an attachment | The `.eml` file and also the attachments in it | `EXPAND_ATTACHED_MESSAGES` |

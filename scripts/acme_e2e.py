@@ -8,7 +8,8 @@ fetches the token over HTTP.
 
 Two setups are tested:
 
-  direct   the service's challenge listener is what the CA reaches
+  direct   the service's challenge listener is what the CA reaches. The
+           service has three hostnames, one of which the CA refuses
   proxied  a Caddy web server holds the port the CA reaches, manages
            certificates of its own, and forwards only the challenge path
 
@@ -29,6 +30,9 @@ import urllib.error
 import urllib.request
 
 HOST = "mx.example.org"
+SECOND = "mx.example.net"
+# Pebble refuses to issue for this domain, as a CA does for a name it cannot validate.
+REFUSED = "mx.blocked-domain.example"
 PEBBLE, DNS, CADDY = "m2w-acme-pebble", "m2w-acme-dns", "m2w-acme-caddy"
 SMTP_PORT, HTTP_PORT = 12560, 9160
 # Pebble fetches http-01 tokens from this port, as a real CA does from port 80.
@@ -116,11 +120,11 @@ def start_caddy(workdir, api_ca):
     wait_for("the web server", lambda: socket.create_connection(("127.0.0.1", VALIDATION_PORT), 0.5).close() or True)
 
 
-def start_service(binary, data_dir, api_ca, log_path, challenge_port):
+def start_service(binary, data_dir, api_ca, log_path, challenge_port, hostnames=HOST):
     env = dict(os.environ,
                SMTP_ADDR=f"127.0.0.1:{SMTP_PORT}",
                HTTP_ADDR=f"127.0.0.1:{HTTP_PORT}",
-               SMTP_DOMAIN=HOST,
+               SMTP_DOMAIN=hostnames,
                ALLOWED_DOMAINS="example.org",
                WEBHOOK_URL=f"http://127.0.0.1:{HTTP_PORT}/ui/api/webhook-sink",
                ACME_ENABLED="true",
@@ -155,12 +159,14 @@ def http_status(url):
         return e.code
 
 
-def starttls_certificate(issuing_root):
+def starttls_certificate(issuing_root, server_name=HOST, match_hostname=True):
     """Upgrade one SMTP connection and return the certificate the server presents.
 
-    The handshake verifies the chain up to the CA's root and the hostname.
+    The handshake asks for server_name and verifies the chain up to the CA's
+    root. Unless match_hostname is off, it also verifies the hostname.
     """
     ctx = ssl.create_default_context(cadata=issuing_root)
+    ctx.check_hostname = match_hostname
     sock = socket.create_connection(("127.0.0.1", SMTP_PORT), 10)
     reader = sock.makefile("rb")
 
@@ -179,24 +185,40 @@ def starttls_certificate(issuing_root):
         raise AssertionError(f"STARTTLS is not offered: {extensions}")
     sock.sendall(b"STARTTLS\r\n")
     reply()
-    with ctx.wrap_socket(sock, server_hostname=HOST) as tls:
+    with ctx.wrap_socket(sock, server_hostname=server_name) as tls:
         return tls.getpeercert(), tls.version()
+
+
+def names_of(cert):
+    return [value for kind, value in cert.get("subjectAltName", ()) if kind == "DNS"]
+
+
+def hosts_ready():
+    return {h["host"]: h["ready"] for h in health().get("starttls", {}).get("hosts", [])}
 
 
 def direct(binary, workdir, api_ca, issuing_root):
     """The CA reaches the service's own challenge listener."""
     print("--- direct ---")
     data_dir = os.path.join(workdir, "direct")
-    proc = start_service(binary, data_dir, api_ca, os.path.join(workdir, "direct-1.log"), VALIDATION_PORT)
+    hostnames = f"{HOST},{SECOND},{REFUSED}"
+    proc = start_service(binary, data_dir, api_ca, os.path.join(workdir, "direct-1.log"), VALIDATION_PORT, hostnames)
     try:
-        state = wait_for("the certificate", lambda: health().get("starttls", {}).get("ready") and health())
+        wait_for("the two certificates", lambda: hosts_ready().get(HOST) and hosts_ready().get(SECOND))
+        state = health()
         check("health reports the certificate", state["starttls"]["mode"] == "acme" and "expires" in state["starttls"], state)
+        check("a hostname the CA refuses has no certificate, and the others do",
+              hosts_ready() == {HOST: True, SECOND: True, REFUSED: False}, str(hosts_ready()))
 
         cert, version = starttls_certificate(issuing_root)
-        names = [value for kind, value in cert.get("subjectAltName", ()) if kind == "DNS"]
-        check("the handshake verifies against the CA's root and the hostname", names == [HOST], names)
+        check("the handshake verifies against the CA's root and the hostname", names_of(cert) == [HOST], names_of(cert))
         check("TLS 1.2 or later", version in ("TLSv1.2", "TLSv1.3"), version)
         serial = cert["serialNumber"]
+
+        second, _ = starttls_certificate(issuing_root, SECOND)
+        check("the second hostname has its own certificate", names_of(second) == [SECOND], names_of(second))
+        fallback, _ = starttls_certificate(issuing_root, REFUSED, match_hostname=False)
+        check("a client that asks for the refused hostname gets the first certificate", names_of(fallback) == [HOST], names_of(fallback))
 
         unverified = ssl.create_default_context()
         unverified.check_hostname, unverified.verify_mode = False, ssl.CERT_NONE
@@ -219,18 +241,21 @@ def direct(binary, workdir, api_ca, issuing_root):
         stored = []
         for root, _, files in os.walk(os.path.join(data_dir, "acme")):
             stored += [os.path.join(root, f) for f in files]
-        check("certificate, key and account key are stored", sorted(os.path.basename(f) for f in stored) == ["account.key", "cert.pem", "key.pem"], str(stored))
+        check("one account key, and a certificate and key for each of the two hostnames are stored",
+              sorted(os.path.basename(f) for f in stored) == ["account.key", "cert.pem", "cert.pem", "key.pem", "key.pem"], str(stored))
         check("they are readable by the owner only", all(stat.S_IMODE(os.stat(f).st_mode) == 0o600 for f in stored))
 
         # A restart uses the stored certificate and orders nothing.
         stop(proc)
         second_log = os.path.join(workdir, "direct-2.log")
-        proc = start_service(binary, data_dir, api_ca, second_log, VALIDATION_PORT)
-        wait_for("the certificate after a restart", lambda: health().get("starttls", {}).get("ready"), timeout=15)
+        proc = start_service(binary, data_dir, api_ca, second_log, VALIDATION_PORT, hostnames)
+        wait_for("the certificates after a restart", lambda: hosts_ready().get(HOST) and hosts_ready().get(SECOND), timeout=15)
         again, _ = starttls_certificate(issuing_root)
-        check("after a restart the same certificate is served", again["serialNumber"] == serial)
+        again_second, _ = starttls_certificate(issuing_root, SECOND)
+        check("after a restart the same certificates are served",
+              again["serialNumber"] == serial and again_second["serialNumber"] == second["serialNumber"])
         log = open(second_log).read()
-        check("and no new one was ordered", "certificate loaded" in log and "certificate obtained" not in log, log[-600:])
+        check("and no new one was ordered", log.count("certificate loaded") == 2 and "certificate obtained" not in log, log[-600:])
     finally:
         stop(proc)
 
@@ -243,8 +268,7 @@ def proxied(binary, workdir, api_ca, issuing_root):
     try:
         wait_for("the certificate", lambda: health().get("starttls", {}).get("ready"))
         cert, _ = starttls_certificate(issuing_root)
-        names = [value for kind, value in cert.get("subjectAltName", ()) if kind == "DNS"]
-        check("a certificate was issued through the web server", names == [HOST], names)
+        check("a certificate was issued through the web server", names_of(cert) == [HOST], names_of(cert))
 
         # The web server kept its own business: it got a certificate for its
         # own site from the same CA, over the same port.
@@ -253,8 +277,7 @@ def proxied(binary, workdir, api_ca, issuing_root):
             with socket.create_connection(("127.0.0.1", 5005), 5) as raw, ctx.wrap_socket(raw, server_hostname="portal.example.org") as tls:
                 return tls.getpeercert()
         own = wait_for("the web server's own certificate", own_site, timeout=90)
-        own_names = [value for kind, value in own.get("subjectAltName", ()) if kind == "DNS"]
-        check("the web server still obtained its own certificate", own_names == ["portal.example.org"], own_names)
+        check("the web server still obtained its own certificate", names_of(own) == ["portal.example.org"], names_of(own))
 
         # Only the challenge path is forwarded.
         req = urllib.request.Request(f"http://127.0.0.1:{VALIDATION_PORT}/ui/", headers={"Host": HOST})

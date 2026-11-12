@@ -23,7 +23,7 @@ docker compose pull && docker compose up -d
 ## Before you set the MX record
 
 1. Set `ALLOWED_DOMAINS`. If it is empty, the service accepts all recipient domains and posts the messages to your endpoint.
-2. Set `SMTP_DOMAIN` to the hostname in the MX record. Example: `mx.example.org`.
+2. Set `SMTP_DOMAIN` to the hostname in the MX record. Example: `mx.example.org`. If your MX records use more than one hostname, give all of them, with commas between them.
 3. Protect the UI, because it shows message content. Docker Compose binds the UI to `127.0.0.1`. Use a reverse proxy with authentication, or set `UI_AUTH_USER` and `UI_AUTH_PASS`.
 4. Make sure that the size limits agree. Your endpoint and its proxy must accept a body of approximately 1.4 times `MAX_MESSAGE_BYTES`.
 
@@ -65,13 +65,13 @@ ports:
   - "80:8089"
 ```
 
-The service orders a certificate for `SMTP_DOMAIN`. It renews the certificate when one third of the lifetime remains.
+The service orders a certificate for each hostname in `SMTP_DOMAIN`. It renews a certificate when one third of the lifetime remains.
 
 If you set `ACME_ENABLED=true`, you accept the [Let's Encrypt Subscriber Agreement](https://letsencrypt.org/repository/).
 
-The CA gives a certificate only if these two conditions are true:
+The CA gives a certificate for a hostname only if these two conditions are true:
 
-- `SMTP_DOMAIN` points to this server in public DNS.
+- The hostname points to this server in public DNS.
 - Port 80 of that host connects to the service.
 
 The CA gets a token from `http://<SMTP_DOMAIN>/.well-known/acme-challenge/...`. The listener on `ACME_HTTP_ADDR` answers that path. It answers `404` for all other paths.
@@ -89,6 +89,18 @@ If the order fails:
 For tests, set `ACME_DIRECTORY_URL` to the staging directory: `https://acme-staging-v02.api.letsencrypt.org/directory`. Clients do not trust the staging certificates. The staging limits are much higher.
 
 `/healthz` gives the status in `starttls`. The sidebar of the UI also shows the status.
+
+#### More than one hostname
+
+```
+SMTP_DOMAIN=mx.example.org,mx.example.net
+```
+
+- Each hostname gets its own certificate.
+- If the CA refuses one hostname, the other hostnames keep their certificates.
+- A sender can ask for a hostname when it starts TLS. The service then gives the certificate for that hostname.
+- If the sender does not ask for a hostname, the service gives the certificate of the first hostname.
+- The service orders the certificates one at a time.
 
 #### If a web server uses port 80
 
@@ -130,7 +142,7 @@ For this configuration, the MX hostname must point to the machine of the web ser
 
 ### Your own certificate
 
-Mount a certificate for `SMTP_DOMAIN`. Then set these values:
+Mount a certificate that contains all hostnames in `SMTP_DOMAIN`. Then set these values:
 
 ```
 TLS_CERT=/certs/fullchain.pem

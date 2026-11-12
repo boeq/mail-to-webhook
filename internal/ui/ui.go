@@ -291,6 +291,17 @@ func (u *UI) shellStatus() shellStatus {
 		case t.Ready:
 			st.TLS = "on"
 			st.TLSTitle = "Certificate for " + t.Host + ", valid until " + t.NotAfter.UTC().Format("2006-01-02")
+			if len(t.Hosts) > 1 {
+				var parts []string
+				for _, h := range t.Hosts {
+					if h.Ready {
+						parts = append(parts, h.Host+" until "+h.NotAfter.UTC().Format("2006-01-02"))
+					} else {
+						parts = append(parts, h.Host+" no certificate yet")
+					}
+				}
+				st.TLSTitle = "Certificates: " + strings.Join(parts, ", ")
+			}
 		case t.Mode != tlscert.ModeOff:
 			st.TLS = "waiting"
 			st.TLSTitle = "No certificate yet; STARTTLS is offered once one has been obtained"

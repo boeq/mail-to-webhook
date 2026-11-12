@@ -80,6 +80,38 @@ func TestCredentialsInTheRecipientCheckURL(t *testing.T) {
 	}
 }
 
+// A server can be known by more than one hostname. The first is the one it
+// announces and makes its own addresses with.
+func TestSeveralHostnames(t *testing.T) {
+	t.Setenv("WEBHOOK_URL", "https://app.example.org/hook")
+	t.Setenv("SMTP_DOMAIN", " MX.Example.org , mx.example.net.,mx.example.org,")
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.SMTPDomains) != 2 || c.SMTPDomains[0] != "mx.example.org" || c.SMTPDomains[1] != "mx.example.net" {
+		t.Errorf("hostnames = %q", c.SMTPDomains)
+	}
+	if c.SMTPDomain != "mx.example.org" || c.FallbackSender != "mailer-daemon@mx.example.org" {
+		t.Errorf("primary = %q, fallback sender = %q", c.SMTPDomain, c.FallbackSender)
+	}
+	for _, s := range c.Settings() {
+		if s.Key == "SMTP_DOMAIN" && s.Value != "mx.example.org,mx.example.net" {
+			t.Errorf("SMTP_DOMAIN setting = %q", s.Value)
+		}
+	}
+
+	// With ACME every one of them must be a name a CA can issue for.
+	t.Setenv("ACME_ENABLED", "true")
+	if _, err := Load(); err != nil {
+		t.Errorf("two public hostnames: %v", err)
+	}
+	t.Setenv("SMTP_DOMAIN", "mx.example.org,mail.local")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), `not "mail.local"`) {
+		t.Errorf("one private hostname in the list: %v", err)
+	}
+}
+
 // A CA only issues for a public hostname, so anything else is refused at
 // startup rather than failing an order later.
 func TestACMESettings(t *testing.T) {

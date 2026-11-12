@@ -17,8 +17,12 @@ import (
 
 type Config struct {
 	// SMTP listener
-	SMTPAddr        string
-	SMTPDomain      string // hostname announced in the 220 greeting / EHLO response
+	SMTPAddr string
+	// SMTPDomains are the hostnames this server is known by, the names MX
+	// records point to. SMTPDomain is the first of them: the one announced in
+	// the greeting, and the one generated addresses and ids are made with.
+	SMTPDomains     []string
+	SMTPDomain      string
 	MaxMessageBytes int64
 	MaxRecipients   int
 	MaxLineBytes    int
@@ -102,7 +106,7 @@ func Load() (*Config, error) {
 	e := &env{}
 	c := &Config{
 		SMTPAddr:        e.str("SMTP_ADDR", ":2525"),
-		SMTPDomain:      e.str("SMTP_DOMAIN", "inbound.local"),
+		SMTPDomains:     hostnames(e.list("SMTP_DOMAIN")),
 		MaxMessageBytes: e.int64("MAX_MESSAGE_BYTES", 25<<20),
 		MaxRecipients:   e.int("MAX_RECIPIENTS", 50),
 		MaxLineBytes:    e.int("MAX_LINE_BYTES", 1<<20),
@@ -169,6 +173,11 @@ func Load() (*Config, error) {
 		LogLevel: strings.ToLower(e.str("LOG_LEVEL", "info")),
 	}
 
+	if len(c.SMTPDomains) == 0 {
+		c.SMTPDomains = []string{"inbound.local"}
+	}
+	c.SMTPDomain = c.SMTPDomains[0]
+
 	c.splitWebhookCredentials(e)
 	c.RecipientCheckURL = c.withoutCredentials(c.RecipientCheckURL)
 
@@ -226,11 +235,12 @@ func (c *Config) checkACME(e *env) {
 	if c.TLSCert != "" {
 		e.fail("ACME_ENABLED and TLS_CERT are two ways to get a certificate; use one")
 	}
-	// A CA only issues for a public DNS name, which SMTP_DOMAIN must then be.
-	host := c.SMTPDomain
-	if host == "inbound.local" || !strings.Contains(host, ".") || net.ParseIP(host) != nil ||
-		strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".localhost") {
-		e.fail(fmt.Sprintf("ACME_ENABLED needs SMTP_DOMAIN to be the public hostname of this server, not %q", host))
+	// A CA only issues for a public DNS name, which every SMTP_DOMAIN must then be.
+	for _, host := range c.SMTPDomains {
+		if host == "inbound.local" || !strings.Contains(host, ".") || net.ParseIP(host) != nil ||
+			strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".localhost") {
+			e.fail(fmt.Sprintf("ACME_ENABLED needs SMTP_DOMAIN to be the public hostname of this server, not %q", host))
+		}
 	}
 	if c.ACMEDirectoryURL != "" && !isHTTP(c.ACMEDirectoryURL) {
 		e.fail("ACME_DIRECTORY_URL must be an http(s) URL")
@@ -299,7 +309,7 @@ type Setting struct {
 func (c *Config) Settings() []Setting {
 	values := map[string]string{
 		"SMTP_ADDR":                         c.SMTPAddr,
-		"SMTP_DOMAIN":                       c.SMTPDomain,
+		"SMTP_DOMAIN":                       strings.Join(c.SMTPDomains, ","),
 		"MAX_MESSAGE_BYTES":                 strconv.FormatInt(c.MaxMessageBytes, 10),
 		"MAX_RECIPIENTS":                    strconv.Itoa(c.MaxRecipients),
 		"MAX_LINE_BYTES":                    strconv.Itoa(c.MaxLineBytes),
@@ -368,6 +378,20 @@ func (c *Config) Settings() []Setting {
 			s.Value = values[k]
 		}
 		out = append(out, s)
+	}
+	return out
+}
+
+// hostnames lower-cases a list of hostnames and drops repeats, keeping the order.
+func hostnames(list []string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, h := range list {
+		h = strings.ToLower(strings.TrimSuffix(h, "."))
+		if h != "" && !seen[h] {
+			seen[h] = true
+			out = append(out, h)
+		}
 	}
 	return out
 }

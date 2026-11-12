@@ -125,7 +125,7 @@ For the full field list, refer to [docs/payload.md](docs/payload.md).
 | `WEBHOOK_SECRET` | The key for the signature header. |
 | `ALLOWED_DOMAINS` | The domains for which you receive messages. If it is empty, the service accepts messages for all domains. |
 | `RECIPIENT_CHECK_URL` | The endpoint that tells which addresses exist. If it is empty, the check is off. |
-| `SMTP_DOMAIN` | The hostname in your MX record. |
+| `SMTP_DOMAIN` | The hostname in your MX record. You can give more than one, with commas between them. |
 | `ACME_ENABLED` | The service gets a STARTTLS certificate from Let's Encrypt and renews it. |
 | `TLS_CERT`, `TLS_KEY` | Your own certificate for STARTTLS. |
 | `UI_AUTH_USER`, `UI_AUTH_PASS` | Basic authentication for the operator UI. |

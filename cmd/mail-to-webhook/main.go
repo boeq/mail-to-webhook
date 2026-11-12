@@ -108,7 +108,7 @@ func run() error {
 
 	// The certificate for STARTTLS: from files, through ACME, or none.
 	var certs tlscert.Source
-	var keeper *tlscert.ACME
+	var keeper *tlscert.Group
 	var acmeServer *http.Server
 	var acmeListener net.Listener
 	tlsStatus := tlscert.Off
@@ -120,7 +120,7 @@ func run() error {
 		}
 		certs, tlsStatus = static, static.Status
 	case cfg.ACMEEnabled:
-		keeper = tlscert.NewACME(cfg.SMTPDomain, cfg.ACMEEmail, cfg.ACMEDirectoryURL, cfg.DataDir, log)
+		keeper = tlscert.NewGroup(cfg.SMTPDomains, cfg.ACMEEmail, cfg.ACMEDirectoryURL, cfg.DataDir, log)
 		// The CA fetches its challenge from port 80 of the host; this listener
 		// answers those requests and nothing else.
 		acmeListener, err = net.Listen("tcp", cfg.ACMEHTTPAddr)
@@ -186,6 +186,7 @@ func run() error {
 	log.Info("mail-to-webhook started",
 		"version", version,
 		"smtp", cfg.SMTPAddr,
+		"hostnames", cfg.SMTPDomains,
 		"http", cfg.HTTPAddr,
 		"webhook", wh.URL(),
 		"recipient_check", checker.Enabled(),
@@ -248,6 +249,17 @@ func health(st *store.Store, checker *recipients.Checker, tlsStatus func() tlsce
 			starttls := map[string]any{"mode": t.Mode, "ready": t.Ready}
 			if t.Ready {
 				starttls["expires"] = t.NotAfter.UTC().Format(time.RFC3339)
+			}
+			var hosts []map[string]any
+			for _, h := range t.Hosts {
+				host := map[string]any{"host": h.Host, "ready": h.Ready}
+				if h.Ready {
+					host["expires"] = h.NotAfter.UTC().Format(time.RFC3339)
+				}
+				hosts = append(hosts, host)
+			}
+			if hosts != nil {
+				starttls["hosts"] = hosts
 			}
 			body["starttls"] = starttls
 		}

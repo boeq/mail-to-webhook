@@ -52,7 +52,8 @@ type ACME struct {
 	Host         string
 	Email        string // optional contact for expiry notices
 	DirectoryURL string
-	Dir          string // where the account key and the certificate are kept
+	Dir          string // where the certificate of this host is kept
+	AccountKey   string // path of the account key, shared by all hosts of one CA
 	Log          *slog.Logger
 	Now          func() time.Time
 
@@ -77,11 +78,13 @@ func NewACME(host, email, directoryURL, dataDir string, log *slog.Logger) *ACME 
 	// A certificate from one CA must not be served after a switch to another,
 	// staging to production in particular, so each directory has its own folder.
 	sum := sha256.Sum256([]byte(directoryURL))
+	base := filepath.Join(dataDir, "acme", hex.EncodeToString(sum[:4]))
 	a := &ACME{
 		Host:         host,
 		Email:        email,
 		DirectoryURL: directoryURL,
-		Dir:          filepath.Join(dataDir, "acme", hex.EncodeToString(sum[:4])),
+		Dir:          filepath.Join(base, host),
+		AccountKey:   filepath.Join(base, "account.key"),
 		Log:          log,
 		Now:          time.Now,
 		ready:        make(chan struct{}),
@@ -106,22 +109,14 @@ func (a *ACME) Status() Status {
 	return st
 }
 
-// Run loads a stored certificate, obtains one when there is none, and renews
-// it in time, until ctx ends.
-func (a *ACME) Run(ctx context.Context) {
+// Load puts a stored certificate into use, so that a restart does not start
+// with an order.
+func (a *ACME) Load() {
 	if cert, err := a.load(); err != nil {
-		a.Log.Warn("stored certificate not usable, requesting a new one", "err", err)
+		a.Log.Warn("stored certificate not usable, requesting a new one", "host", a.Host, "err", err)
 	} else if cert != nil {
 		a.use(cert)
 		a.Log.Info("certificate loaded", "host", a.Host, "expires", cert.Leaf.NotAfter.UTC().Format(time.RFC3339))
-	}
-	for {
-		wait := a.Step(ctx)
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(wait):
-		}
 	}
 }
 
@@ -169,15 +164,28 @@ func (a *ACME) due(cert *tls.Certificate) bool {
 
 // ServeHTTP answers the CA's http-01 requests and nothing else.
 func (a *ACME) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	serveChallenge(w, r, a)
+}
+
+// challenge returns the response for a challenge path this host is waiting on.
+func (a *ACME) challenge(path string) (string, bool) {
 	a.mu.Lock()
-	response, ok := a.challenges[r.URL.Path]
-	a.mu.Unlock()
-	if !ok || (r.Method != http.MethodGet && r.Method != http.MethodHead) {
-		http.NotFound(w, r)
-		return
+	defer a.mu.Unlock()
+	response, ok := a.challenges[path]
+	return response, ok
+}
+
+func serveChallenge(w http.ResponseWriter, r *http.Request, keepers ...*ACME) {
+	if r.Method == http.MethodGet || r.Method == http.MethodHead {
+		for _, a := range keepers {
+			if response, ok := a.challenge(r.URL.Path); ok {
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				_, _ = io.WriteString(w, response)
+				return
+			}
+		}
 	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	_, _ = io.WriteString(w, response)
+	http.NotFound(w, r)
 }
 
 // order runs one ACME order from account to certificate.
@@ -282,7 +290,7 @@ func (a *ACME) authorize(ctx context.Context, client *acme.Client, url string) e
 }
 
 func (a *ACME) accountKey() (crypto.Signer, error) {
-	path := filepath.Join(a.Dir, "account.key")
+	path := a.AccountKey
 	if raw, err := os.ReadFile(path); err == nil {
 		block, _ := pem.Decode(raw)
 		if block == nil {

@@ -51,7 +51,7 @@ Large providers send messages for many customers from the same IP addresses. Do 
 | Variable | Default | Purpose |
 |---|---|---|
 | `SMTP_ADDR` | `:2525` | The listen address. Publish it as port 25. |
-| `SMTP_DOMAIN` | `inbound.local` | The hostname in the greeting. |
+| `SMTP_DOMAIN` | `inbound.local` | The hostname of the server, as in the MX record. You can give more than one hostname, with commas between them. The service uses the first hostname in the greeting, in the default of `FALLBACK_SENDER` and in the message IDs that it makes. |
 | `MAX_MESSAGE_BYTES` | `26214400` | A larger message gets `552`. |
 | `MAX_RECIPIENTS` | `50` | The maximum number of recipients for each message. |
 | `MAX_LINE_BYTES` | `1048576` | The maximum length of a line. |
@@ -63,11 +63,11 @@ Without a certificate, messages arrive without encryption. There are two methods
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `ACME_ENABLED` | `false` | The service gets a certificate for `SMTP_DOMAIN` from Let's Encrypt and renews it. If you set it to `true`, you accept the terms of service of the CA. |
+| `ACME_ENABLED` | `false` | The service gets a certificate for each hostname in `SMTP_DOMAIN` from Let's Encrypt and renews it. If you set it to `true`, you accept the terms of service of the CA. |
 | `ACME_EMAIL` | | A contact address for the CA. Optional. |
 | `ACME_DIRECTORY_URL` | Let's Encrypt | The directory of a different ACME CA, or of the Let's Encrypt staging environment. |
 | `ACME_HTTP_ADDR` | `:8089` | The listener for the validation request of the CA. Publish it as port 80. |
-| `TLS_CERT`, `TLS_KEY` | | Your own certificate and key, as PEM files. Set the two together. |
+| `TLS_CERT`, `TLS_KEY` | | Your own certificate and key, as PEM files. Set the two together. The certificate must contain all hostnames in `SMTP_DOMAIN`. |
 
 ## Payload
 

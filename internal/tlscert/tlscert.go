@@ -28,6 +28,15 @@ const (
 
 type Status struct {
 	Mode      string
+	Host      string // the first, or only, host
+	Ready     bool   // at least one certificate is in use
+	NotAfter  time.Time
+	LastError string
+	// Hosts has one entry per host when certificates are kept per host.
+	Hosts []HostStatus
+}
+
+type HostStatus struct {
 	Host      string
 	Ready     bool
 	NotAfter  time.Time
@@ -93,12 +102,20 @@ func hostOf(cert *tls.Certificate) string {
 // at the moment of the handshake, so a renewed certificate is picked up
 // without a restart.
 //
-// The name a client asks for is ignored. A mail server often sends none, and
-// there is one certificate here: the one for the host the MX record names.
+// A mail server often names no host in the handshake, and then it gets the
+// certificate of the first host. A source with a certificate per host serves
+// the one for the name that was asked for, when it has it.
 func TLSConfig(src Source) *tls.Config {
 	return &tls.Config{
 		MinVersion: tls.VersionTLS12,
-		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			if byName, ok := src.(interface {
+				CertificateFor(string) *tls.Certificate
+			}); ok {
+				if cert := byName.CertificateFor(hello.ServerName); cert != nil {
+					return cert, nil
+				}
+			}
 			if cert := src.Certificate(); cert != nil {
 				return cert, nil
 			}
