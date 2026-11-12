@@ -7,7 +7,7 @@ GO      := scripts/go.sh
 BIN     := bin/mail-to-webhook
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-.PHONY: build css test vet node-check e2e acme-e2e check run banners docker clean
+.PHONY: build css test vet node-check e2e acme-e2e check run docker clean
 
 # The stylesheet: Tailwind v4 builds internal/ui/styles/index.css into
 # internal/ui/static/app.css, which git ignores and the binary embeds.
@@ -47,10 +47,6 @@ run: build
 	@set -a; [ -f .env ] && . ./.env; set +a; \
 	DATA_DIR="./.data" SMTP_ADDR="$${SMTP_ADDR:-127.0.0.1:2525}" HTTP_ADDR="$${HTTP_ADDR:-127.0.0.1:8080}" \
 	WEBHOOK_URL="$${WEBHOOK_URL:-http://127.0.0.1:8080/ui/api/webhook-sink}" $(BIN)
-
-# The README's header and footer images, rendered from .github/assets/banner.html.
-banners:
-	python3 scripts/render_banners.py
 
 docker:
 	docker build --build-arg VERSION=$(VERSION) -t mail-to-webhook:local .

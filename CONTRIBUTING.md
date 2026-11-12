@@ -40,7 +40,7 @@ internal/webhook/      signing, one HTTP attempt, reading the answer
 internal/delivery/     attempts, retries, resends
 internal/store/        SQLite history and the raw-message spool
 internal/ui/           the operator UI
-scripts/               end-to-end test, banner rendering
+scripts/               the end-to-end tests
 docs/                  user documentation
 ```
 
@@ -56,7 +56,3 @@ docs/                  user documentation
 - The history must not stop a message. If the database fails, the service writes the error to the log and continues without a record.
 - Do not write a secret to a log, a page or an error message.
 - Keep the settings in the documentation. A test fails if a variable is not in `.env.example` or in `docs/configuration.md`.
-
-## The README images
-
-`make banners` makes the header image and the footer image from `.github/assets/banner.html`. It uses a headless Chromium. To install one, use `pip install playwright && playwright install chromium`.
