@@ -17,6 +17,10 @@ make css        # rebuild the stylesheet after changing a template or a style
 make acme-e2e   # order a certificate from Pebble, Let's Encrypt's test CA (needs Docker)
 ```
 
+`make check` also runs on GitHub Actions for every push and pull request. From `main` and from `v*` tags the same workflow publishes the container image.
+
+To run Docker Compose with an image built from your checkout, copy `docker-compose.override.example.yml` to `docker-compose.override.yml` and run `docker compose up --build`.
+
 ## Layout
 
 ```

@@ -23,8 +23,10 @@ sender ──SMTP :25──▶ mail-to-webhook ──HTTPS POST──▶ your en
 
 ```bash
 cp .env.example .env            # set WEBHOOK_URL and ALLOWED_DOMAINS
-docker compose up --build -d
+docker compose up -d
 ```
+
+This pulls `ghcr.io/boeq/mail-to-webhook`, which GitHub Actions builds from `main` for `linux/amd64` and `linux/arm64`.
 
 Send it a message:
 

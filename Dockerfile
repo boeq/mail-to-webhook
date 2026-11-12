@@ -1,6 +1,10 @@
 # The stylesheet is built first; only its output reaches the later stages,
 # and the runtime image has neither Node nor a Go toolchain.
-FROM node:22-alpine AS css
+#
+# Both build stages run on the architecture of the machine that builds, and
+# the binary is cross-compiled for the target. An image for another
+# architecture then needs no emulation.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS css
 WORKDIR /build
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -9,7 +13,9 @@ COPY internal/ui/templates ./internal/ui/templates
 COPY internal/ui/static ./internal/ui/static
 RUN npm run css
 
-FROM golang:1.27 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27 AS build
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -17,7 +23,7 @@ COPY cmd ./cmd
 COPY internal ./internal
 COPY --from=css /build/internal/ui/static/app.css ./internal/ui/static/app.css
 ARG VERSION=dev
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
       -o /out/mail-to-webhook ./cmd/mail-to-webhook \
  && mkdir -p /out/data
 

@@ -1,7 +1,9 @@
 services:
   mail-to-webhook:
-    build: .
-    image: mail-to-webhook:local
+    # Built and published by GitHub Actions from main. Pin a version tag in
+    # production. To build from a checkout instead, see
+    # docker-compose.override.example.yml.
+    image: ghcr.io/boeq/mail-to-webhook:latest
     env_file: .env
     environment:
       DATA_DIR: /data

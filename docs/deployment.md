@@ -1,5 +1,19 @@
 # Deployment
 
+## The image
+
+```
+ghcr.io/boeq/mail-to-webhook:latest
+```
+
+GitHub Actions builds it for `linux/amd64` and `linux/arm64` after the tests pass. `latest` follows `main`. Each build also has a tag with its short commit hash, and a release tagged `v1.2.3` is published as `1.2.3` and `1.2`. Pin one of those in production.
+
+A server needs only `docker-compose.yml` and `.env`. To update:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
 ## Before you point an MX record at it
 
 1. Set `ALLOWED_DOMAINS`. With it empty, every recipient domain is accepted and posted to your endpoint.

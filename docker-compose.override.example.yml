@@ -3,6 +3,9 @@
 # Copy to docker-compose.override.yml, which git ignores.
 services:
   mail-to-webhook:
+    # Build from this checkout instead of pulling the published image.
+    build: .
+    image: mail-to-webhook:local
     ports: !override
       - "127.0.0.1:2525:2525"
       - "127.0.0.1:8080:8080"
